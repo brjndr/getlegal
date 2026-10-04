@@ -1,0 +1,62 @@
+[
+  {
+    "name": "AI Addendum",
+    "description": "Common Paper standard AI Addendum. Supplements an existing agreement with terms covering a provider's AI services, including use of customer input and output, model training restrictions, and related disclaimers.",
+    "filename": "AI-Addendum.md"
+  },
+  {
+    "name": "Business Associate Agreement",
+    "description": "Common Paper standard Business Associate Agreement (BAA). Governs how a provider may use, disclose, and safeguard protected health information (PHI) on behalf of a customer under HIPAA.",
+    "filename": "BAA.md"
+  },
+  {
+    "name": "Cloud Service Agreement",
+    "description": "Common Paper standard Cloud Service Agreement (CSA). Standard terms for selling and buying cloud software and SaaS products, covering access and use, payment, warranties, liability, and termination.",
+    "filename": "CSA.md"
+  },
+  {
+    "name": "Design Partner Agreement",
+    "description": "Common Paper standard Design Partner Agreement. Gives a partner early access to a product in exchange for feedback and participation in the provider's design partner program.",
+    "filename": "design-partner-agreement.md"
+  },
+  {
+    "name": "Data Processing Agreement",
+    "description": "Common Paper standard Data Processing Agreement (DPA). Sets out how a provider processes customer personal data as a processor or subprocessor, including security, subprocessors, and cross-border transfers.",
+    "filename": "DPA.md"
+  },
+  {
+    "name": "Mutual Non-Disclosure Agreement",
+    "description": "Common Paper Mutual NDA Standard Terms. Allows each party to disclose confidential information to the other for a defined purpose, with obligations on use, protection, and return of that information.",
+    "filename": "Mutual-NDA.md"
+  },
+  {
+    "name": "Mutual Non-Disclosure Agreement Cover Page",
+    "description": "Cover Page for the Common Paper Mutual NDA. Captures the deal-specific terms (purpose, effective date, MNDA term, term of confidentiality, governing law, jurisdiction, and signatures) and incorporates the Mutual NDA Standard Terms by reference.",
+    "filename": "Mutual-NDA-coverpage.md"
+  },
+  {
+    "name": "Partnership Agreement",
+    "description": "Common Paper standard Partnership Agreement. Standard terms for a business partnership between two companies, covering each party's obligations, payment, trademark licensing, confidentiality, and liability.",
+    "filename": "Partnership-Agreement.md"
+  },
+  {
+    "name": "Pilot Agreement",
+    "description": "Common Paper standard Pilot Agreement. A short-term contract that lets a prospective customer evaluate a product or service before committing to a full commercial agreement.",
+    "filename": "Pilot-Agreement.md"
+  },
+  {
+    "name": "Professional Services Agreement",
+    "description": "Common Paper standard Professional Services Agreement (PSA). Standard terms for a provider delivering professional services under statements of work (SOWs), covering deliverables, payment, intellectual property, and liability.",
+    "filename": "psa.md"
+  },
+  {
+    "name": "Service Level Agreement",
+    "description": "Common Paper standard Service Level Agreement (SLA). Designed for use with the Cloud Service Agreement; defines target uptime, response times, and service credits for a cloud service.",
+    "filename": "sla.md"
+  },
+  {
+    "name": "Software License Agreement",
+    "description": "Common Paper standard Software License Agreement. Standard terms for licensing software that the customer installs and runs on its own systems, covering the license grant, payment, warranties, and liability.",
+    "filename": "Software-License-Agreement.md"
+  }
+]

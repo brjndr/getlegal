@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+@theme {
+  --color-desk: #e3e7e4;
+  --color-panel: #f6f7f5;
+  --color-paper: #ffffff;
+  --color-ink: #1a1f2b;
+  --color-muted: #5b6470;
+  --color-rule: #c9cfcb;
+  --color-pen: #1b3fa8;
+  --color-highlight: #fff1a6;
+}
+
+@theme inline {
+  --font-sans: var(--font-instrument-sans);
+  --font-serif: var(--font-newsreader);
+}
+
+body {
+  background: var(--color-desk);
+  color: var(--color-ink);
+}
+
+@page {
+  margin: 0.9in;
+}
+
+@media print {
+  body {
+    background: var(--color-paper);
+  }
+}

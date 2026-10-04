@@ -46,11 +46,13 @@ export function todayIso(): string {
   return `${now.getFullYear()}-${month}-${day}`;
 }
 
-/** "2026-10-04" -> "October 4, 2026". Returns "" for anything that isn't a date. */
+/** "2026-10-04" -> "October 4, 2026". Returns "" for anything that isn't a date with a four-digit year. */
 export function formatDate(iso: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   if (!match) return "";
   const [, year, month, day] = match;
+  // A date input reports "0002-10-04" while the year is being typed, and Date reads years below 100 as 19xx.
+  if (Number(year) < 1000) return "";
   const date = new Date(Number(year), Number(month) - 1, Number(day));
   return date.toLocaleDateString("en-US", {
     year: "numeric",

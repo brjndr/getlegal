@@ -20,7 +20,9 @@ const STANDARD_TERMS_PATH = path.join(
   "Mutual-NDA.md",
 );
 
-const CLAUSE = /^\d+\.\s+\*\*(.+?)\*\*\.\s+(.+)$/;
+const CLAUSE = /^(\d+)\.\s+\*\*(.+?)\*\*\.\s+(.+)$/;
+const HEADING = /^#+\s/;
+const LICENSE_NOTICE = /creativecommons\.org\/licenses/;
 const INLINE = /<span class="coverpage_link">(.+?)<\/span>|\*\*(.+?)\*\*/g;
 
 function parseBody(body: string): TermSegment[] {
@@ -43,18 +45,38 @@ function parseBody(body: string): TermSegment[] {
   return segments;
 }
 
-/** Reads the Common Paper Mutual NDA Standard Terms and splits them into numbered clauses. */
-export async function loadStandardTerms(): Promise<Clause[]> {
-  const markdown = await readFile(STANDARD_TERMS_PATH, "utf8");
+/**
+ * Splits the Standard Terms into numbered clauses. Throws on any line it can't
+ * place, so agreement text is never left out without anyone noticing.
+ */
+export function parseStandardTerms(markdown: string): Clause[] {
   const clauses: Clause[] = [];
-  for (const line of markdown.split(/\r?\n/)) {
-    const match = CLAUSE.exec(line.trim());
-    if (match) {
-      clauses.push({ title: match[1], body: parseBody(match[2]) });
+  for (const rawLine of markdown.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || HEADING.test(line) || LICENSE_NOTICE.test(line)) continue;
+    const match = CLAUSE.exec(line);
+    if (!match) {
+      throw new Error(`Unrecognized line in the Standard Terms: "${line.slice(0, 60)}"`);
     }
+    if (Number(match[1]) !== clauses.length + 1) {
+      throw new Error(
+        `Expected clause ${clauses.length + 1} in the Standard Terms but found clause ${match[1]}`,
+      );
+    }
+    clauses.push({ title: match[2], body: parseBody(match[3]) });
   }
   if (clauses.length === 0) {
-    throw new Error(`No clauses found in ${STANDARD_TERMS_PATH}`);
+    throw new Error("No clauses found in the Standard Terms");
   }
   return clauses;
+}
+
+/** Reads the Common Paper Mutual NDA Standard Terms from the repo's templates. */
+export async function loadStandardTerms(): Promise<Clause[]> {
+  const markdown = await readFile(STANDARD_TERMS_PATH, "utf8");
+  try {
+    return parseStandardTerms(markdown);
+  } catch (error) {
+    throw new Error(`Could not read ${STANDARD_TERMS_PATH}`, { cause: error });
+  }
 }

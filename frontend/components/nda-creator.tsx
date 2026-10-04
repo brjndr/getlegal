@@ -31,8 +31,15 @@ export function NdaCreator({ clauses }: { clauses: Clause[] }) {
     // Browsers suggest the page title as the PDF file name.
     const previousTitle = document.title;
     document.title = pdfTitle(form);
+    // Not every browser waits in print() until the dialog closes, so restore the title afterwards.
+    window.addEventListener(
+      "afterprint",
+      () => {
+        document.title = previousTitle;
+      },
+      { once: true },
+    );
     window.print();
-    document.title = previousTitle;
   }
 
   return (

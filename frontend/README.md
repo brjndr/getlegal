@@ -13,6 +13,18 @@ npm run dev
 
 Then open http://localhost:3000.
 
+## Checks
+
+```bash
+npm test        # unit and component tests (Vitest)
+npm run lint
+npm run build
+```
+
+The tests compare the Standard Terms shown in the app against
+`../templates/Mutual-NDA.md`, so a parsing change that drops or alters any of
+the agreement text fails the suite.
+
 ## How it fits together
 
 - `app/page.tsx` reads the Standard Terms from `../templates/Mutual-NDA.md` at

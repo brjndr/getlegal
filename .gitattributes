@@ -1,0 +1,2 @@
+# Shell scripts fail to run with Windows line endings.
+*.sh text eol=lf

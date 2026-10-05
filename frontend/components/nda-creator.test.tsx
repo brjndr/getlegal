@@ -196,6 +196,14 @@ describe("NdaCreator", () => {
     expect(html).toContain("Effective date</span>");
   });
 
+  test("shows extra header content beside the download button", () => {
+    render(<NdaCreator clauses={clauses} headerExtra={<button>Sign out</button>} />);
+
+    const header = within(screen.getByRole("banner"));
+    expect(header.getByRole("button", { name: "Sign out" })).toBeDefined();
+    expect(header.getByRole("button", { name: "Download PDF" })).toBeDefined();
+  });
+
   test.each([
     ["", "", "Mutual NDA"],
     [" Acme Inc. ", "Globex LLC", "Mutual NDA - Acme Inc. and Globex LLC"],

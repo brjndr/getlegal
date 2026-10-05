@@ -11,7 +11,8 @@ npm install
 npm run dev
 ```
 
-Then open http://localhost:3000.
+Then open http://localhost:3000. Signing in needs the backend running on
+http://localhost:8000; see the README in the repo root.
 
 ## Checks
 
@@ -30,6 +31,11 @@ the agreement text fails the suite.
 - `app/page.tsx` reads the Standard Terms from `../templates/Mutual-NDA.md` at
   build time (`lib/standard-terms.ts`), so the repo's templates stay the single
   source of the agreement text.
+- The build is a static export (`out/`), which the backend serves. Nothing in
+  the app can depend on a Next.js server at run time.
+- `components/auth-gate.tsx` sends anyone who has not signed in to `/login`.
+  The session (`lib/session.ts`) is the email kept in the browser; there is no
+  authentication yet.
 - `components/nda-creator.tsx` holds the form state and lays out the form
   (`nda-form.tsx`) next to the document (`nda-document.tsx`).
 - The Standard Terms are shown word for word. The details you enter appear on

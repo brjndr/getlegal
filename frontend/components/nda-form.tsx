@@ -1,7 +1,7 @@
 import { useId, type ReactNode } from "react";
 import type { NdaForm, Party, PartyKey } from "@/lib/nda";
 
-const inputClass =
+export const inputClass =
   "w-full rounded-md border border-rule bg-paper px-3 py-2 text-sm text-ink placeholder:text-muted/70 focus-visible:border-pen focus-visible:outline-2 focus-visible:outline-pen/30";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {

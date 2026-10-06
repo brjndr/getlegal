@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { NdaCreator } from "@/components/nda-creator";
+import type { NdaChanges } from "@/lib/nda";
 import { loadStandardTerms, type Clause } from "@/lib/standard-terms";
 
 const TEMPLATE_PATH = path.join(process.cwd(), "..", "templates", "Mutual-NDA.md");
@@ -25,39 +26,44 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+let replies = 0;
+
 function renderCreator() {
   render(<NdaCreator clauses={clauses} />);
-  return {
-    agreement: within(screen.getByRole("article")),
-    party: (name: "Party 1" | "Party 2") =>
-      within(screen.getByRole("group", { name })),
-  };
+  return within(screen.getByRole("article"));
 }
 
-function type(input: HTMLElement, value: string) {
-  fireEvent.change(input, { target: { value } });
+/** Sends a message that the assistant answers by making these changes to the agreement. */
+async function tell(changes: NdaChanges) {
+  const reply = `Noted (${++replies}).`;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => Response.json({ reply, changes, settled: [] })),
+  );
+  fireEvent.change(screen.getByLabelText("Message"), { target: { value: "Here you go" } });
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  await screen.findByText(reply);
 }
 
 describe("NdaCreator", () => {
   test("starts with today's date and one-year terms", () => {
-    const { agreement } = renderCreator();
+    const agreement = renderCreator();
 
     expect(agreement.getByText("October 4, 2026")).toBeDefined();
     expect(agreement.getAllByText("1 year")).toHaveLength(2);
     expect(agreement.getByText("None.")).toBeDefined();
   });
 
-  test("shows what is typed into the form in the agreement", () => {
-    const { agreement } = renderCreator();
+  test("shows what the assistant fills in from the conversation", async () => {
+    const agreement = renderCreator();
 
-    type(
-      screen.getByLabelText("How confidential information may be used"),
-      "Exploring a joint venture.",
-    );
-    type(screen.getByLabelText("Effective date"), "2027-01-15");
-    type(screen.getByLabelText("State whose laws apply"), "Delaware");
-    type(screen.getByLabelText("Where disputes are heard"), "New Castle, DE");
-    type(screen.getByLabelText("Modifications"), "Section 7 does not apply.");
+    await tell({
+      purpose: "Exploring a joint venture.",
+      effectiveDate: "2027-01-15",
+      governingLaw: "Delaware",
+      jurisdiction: "New Castle, DE",
+      modifications: "Section 7 does not apply.",
+    });
 
     expect(agreement.getByText("Exploring a joint venture.")).toBeDefined();
     expect(agreement.getByText("January 15, 2027")).toBeDefined();
@@ -67,13 +73,36 @@ describe("NdaCreator", () => {
     expect(agreement.queryByText("None.")).toBeNull();
   });
 
-  test("puts each party's details in its own signature column", () => {
-    const { agreement, party } = renderCreator();
+  test("keeps earlier answers when later ones arrive", async () => {
+    const agreement = renderCreator();
 
-    type(party("Party 1").getByLabelText("Company"), "Acme Inc.");
-    type(party("Party 1").getByLabelText("Signer’s name"), "Ada Lovelace");
-    type(party("Party 2").getByLabelText("Company"), "Globex LLC");
-    type(party("Party 2").getByLabelText("Notice address"), "legal@globex.example");
+    await tell({ governingLaw: "Delaware", party1: { company: "Acme Inc." } });
+    await tell({ jurisdiction: "New Castle, DE", party1: { name: "Ada Lovelace" } });
+
+    expect(agreement.getByText("Delaware")).toBeDefined();
+    expect(agreement.getByText("New Castle, DE")).toBeDefined();
+    expect(agreement.getByText("Acme Inc.")).toBeDefined();
+    expect(agreement.getByText("Ada Lovelace")).toBeDefined();
+  });
+
+  test("sends the assistant the agreement as it now stands", async () => {
+    renderCreator();
+    await tell({ governingLaw: "Delaware" });
+
+    await tell({});
+
+    const request = JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string);
+    expect(request.form.governingLaw).toBe("Delaware");
+    expect(request.today).toBe("2026-10-04");
+  });
+
+  test("puts each party's details in its own signature column", async () => {
+    const agreement = renderCreator();
+
+    await tell({
+      party1: { company: "Acme Inc.", name: "Ada Lovelace" },
+      party2: { company: "Globex LLC", noticeAddress: "legal@globex.example" },
+    });
 
     const cells = (label: string) =>
       within(agreement.getByRole("row", { name: new RegExp(`^${label}`) }))
@@ -85,51 +114,44 @@ describe("NdaCreator", () => {
     expect(cells("Notice Address")).toEqual(["", "legal@globex.example"]);
   });
 
-  test("writes out the chosen number of years", () => {
-    const { agreement } = renderCreator();
+  test("writes out the chosen number of years", async () => {
+    const agreement = renderCreator();
 
-    type(screen.getByLabelText("Years until the NDA expires"), "3");
-    type(screen.getByLabelText("Years confidential information stays protected"), "5");
+    await tell({ mndaTermYears: "3", confidentialityYears: "5" });
 
     expect(agreement.getByText("3 years")).toBeDefined();
     expect(agreement.getByText("5 years")).toBeDefined();
   });
 
-  test("asks for a number of years when the field is cleared", () => {
-    const { agreement } = renderCreator();
+  test("ticks the selected term options and keeps the template wording for the others", async () => {
+    const agreement = renderCreator();
+    const marked = (marker: string) =>
+      agreement.getAllByText(marker).map((element) => element.parentElement?.textContent);
 
-    type(screen.getByLabelText("Years until the NDA expires"), "");
-
-    expect(agreement.getByText("number of years")).toBeDefined();
-    expect(agreement.getAllByText("1 year")).toHaveLength(1);
-  });
-
-  test("ticks the selected term options", () => {
-    const { agreement } = renderCreator();
-    const selected = () =>
-      agreement
-        .getAllByText("Selected:")
-        .map((marker) => marker.parentElement?.textContent);
-
-    expect(selected()).toEqual([
+    expect(marked("Selected:")).toEqual([
       expect.stringContaining("Expires 1 year from Effective Date."),
       expect.stringContaining("1 year from Effective Date, but in the case of trade secrets"),
     ]);
 
-    fireEvent.click(screen.getByLabelText("Continues until either party ends it"));
-    fireEvent.click(screen.getByLabelText("Forever"));
+    await tell({
+      mndaTerm: "until-terminated",
+      mndaTermYears: "3",
+      confidentialityTerm: "perpetuity",
+      confidentialityYears: "5",
+    });
 
-    expect(selected()).toEqual([
+    expect(marked("Selected:")).toEqual([
       expect.stringContaining("Continues until terminated"),
       expect.stringContaining("In perpetuity."),
     ]);
-    expect(
-      (screen.getByLabelText("Years until the NDA expires") as HTMLInputElement).disabled,
-    ).toBe(true);
+    expect(marked("Not selected:")).toEqual([
+      expect.stringContaining("Expires 1 year(s) from Effective Date."),
+      expect.stringContaining("1 year(s) from Effective Date, but in the case of trade secrets"),
+    ]);
   });
 
   test("shows the Standard Terms word for word", async () => {
-    const { agreement } = renderCreator();
+    const agreement = renderCreator();
     const markdown = await readFile(TEMPLATE_PATH, "utf8");
     const expected = markdown
       .split(/\r?\n/)
@@ -150,50 +172,13 @@ describe("NdaCreator", () => {
     expect(rendered).toEqual(expected);
   });
 
-  test("asks for the effective date when it is cleared", () => {
-    const { agreement } = renderCreator();
-
-    type(screen.getByLabelText("Effective date"), "");
-
-    expect(agreement.getByText("Effective date", { selector: "span" })).toBeDefined();
-    expect(agreement.queryByText("October 4, 2026")).toBeNull();
-  });
-
-  test("marks every value that is still missing", () => {
-    const { agreement } = renderCreator();
-
-    type(screen.getByLabelText("How confidential information may be used"), "   ");
-    type(screen.getByLabelText("Years confidential information stays protected"), "0");
-
-    expect(agreement.getByText("Describe the purpose")).toBeDefined();
-    expect(agreement.getByText("State")).toBeDefined();
-    expect(agreement.getByText("City or county and state")).toBeDefined();
-    expect(agreement.getByText("number of years")).toBeDefined();
-  });
-
-  test("keeps the template wording for the options that are not selected", () => {
-    const { agreement } = renderCreator();
-    const notSelected = () =>
-      agreement
-        .getAllByText("Not selected:")
-        .map((marker) => marker.parentElement?.textContent);
-
-    type(screen.getByLabelText("Years until the NDA expires"), "3");
-    type(screen.getByLabelText("Years confidential information stays protected"), "5");
-    fireEvent.click(screen.getByLabelText("Continues until either party ends it"));
-    fireEvent.click(screen.getByLabelText("Forever"));
-
-    expect(notSelected()).toEqual([
-      expect.stringContaining("Expires 1 year(s) from Effective Date."),
-      expect.stringContaining("1 year(s) from Effective Date, but in the case of trade secrets"),
-    ]);
-  });
-
   test("leaves the date out of the server render so hydration matches", () => {
     const html = renderToString(<NdaCreator clauses={clauses} />);
 
     expect(html).not.toContain("October 4, 2026");
     expect(html).toContain("Effective date</span>");
+    // The greeting needs no request, so it is there from the start.
+    expect(html).toContain("which two companies are entering into the NDA?");
   });
 
   test("shows extra header content beside the download button", () => {
@@ -209,8 +194,8 @@ describe("NdaCreator", () => {
     [" Acme Inc. ", "Globex LLC", "Mutual NDA - Acme Inc. and Globex LLC"],
     ["Acme Inc.", "", "Mutual NDA - Acme Inc."],
     ["   ", "Globex LLC", "Mutual NDA - Globex LLC"],
-  ])("names the PDF for companies %j and %j", (company1, company2, expected) => {
-    const { party } = renderCreator();
+  ])("names the PDF for companies %j and %j", async (company1, company2, expected) => {
+    renderCreator();
     document.title = "Mutual NDA creator";
     let titleWhilePrinting = "";
     const print = vi.fn(() => {
@@ -218,8 +203,7 @@ describe("NdaCreator", () => {
     });
     vi.stubGlobal("print", print);
 
-    type(party("Party 1").getByLabelText("Company"), company1);
-    type(party("Party 2").getByLabelText("Company"), company2);
+    await tell({ party1: { company: company1 }, party2: { company: company2 } });
     fireEvent.click(screen.getByRole("button", { name: "Download PDF" }));
 
     expect(print).toHaveBeenCalledOnce();

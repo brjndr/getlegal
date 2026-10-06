@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { NdaChat } from "@/components/nda-chat";
 import { NdaDocument } from "@/components/nda-document";
-import { NdaFormFields } from "@/components/nda-form";
-import { defaultNdaForm, todayIso, type NdaForm } from "@/lib/nda";
+import { applyChanges, defaultNdaForm, todayIso, type NdaForm } from "@/lib/nda";
 import type { Clause } from "@/lib/standard-terms";
+import { buttonClass } from "@/lib/styles";
 
 const subscribeToNothing = () => () => {};
 
@@ -63,7 +64,7 @@ export function NdaCreator({
           <button
             type="button"
             onClick={downloadPdf}
-            className="rounded-md bg-pen px-4 py-2 text-sm font-semibold text-white hover:bg-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pen"
+            className={buttonClass}
           >
             Download PDF
           </button>
@@ -71,11 +72,11 @@ export function NdaCreator({
       </header>
 
       <div className="lg:grid lg:grid-cols-[26rem_minmax(0,1fr)]">
-        <aside className="border-b border-rule bg-panel lg:sticky lg:top-16 lg:h-[calc(100dvh-4rem)] lg:overflow-y-auto lg:border-r lg:border-b-0 print:hidden">
-          <NdaFormFields
+        {/* A fixed height, so the conversation scrolls inside it and the message box stays put. */}
+        <aside className="h-[28rem] max-h-[70dvh] border-b border-rule bg-panel lg:sticky lg:top-16 lg:h-[calc(100dvh-4rem)] lg:max-h-none lg:border-r lg:border-b-0 print:hidden">
+          <NdaChat
             form={form}
-            effectiveDate={effectiveDate}
-            onChange={(patch) => setForm((current) => ({ ...current, ...patch }))}
+            onChanges={(changes) => setForm((current) => applyChanges(current, changes))}
           />
         </aside>
         <main className="px-3 py-6 sm:p-8 xl:p-12 print:p-0">

@@ -2,9 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState, type FormEvent } from "react";
-import { inputClass } from "@/components/nda-form";
 import { login } from "@/lib/api";
 import { setSession, useSession } from "@/lib/session";
+import { buttonClass, inputClass } from "@/lib/styles";
 
 export function LoginForm() {
   const router = useRouter();
@@ -87,7 +87,7 @@ export function LoginForm() {
         <button
           type="submit"
           disabled={pending}
-          className="w-full rounded-md bg-pen px-4 py-2 text-sm font-semibold text-white hover:bg-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pen disabled:opacity-50"
+          className={`${buttonClass} w-full`}
         >
           {pending ? "Signing in…" : "Sign in"}
         </button>

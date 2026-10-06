@@ -1,8 +1,8 @@
 # getlegal frontend
 
-A Next.js app for creating a Mutual NDA. Fill in the form and the agreement
-updates alongside it; **Download PDF** opens the browser's print dialog, where
-you choose "Save as PDF".
+A Next.js app for creating a Mutual NDA. Chat with the AI assistant and the
+agreement fills in alongside the conversation; **Download PDF** opens the
+browser's print dialog, where you choose "Save as PDF".
 
 ## Running locally
 
@@ -11,8 +11,8 @@ npm install
 npm run dev
 ```
 
-Then open http://localhost:3000. Signing in needs the backend running on
-http://localhost:8000; see the README in the repo root.
+Then open http://localhost:3000. Signing in and the chat need the backend
+running on http://localhost:8000; see the README in the repo root.
 
 ## Checks
 
@@ -36,8 +36,12 @@ the agreement text fails the suite.
 - `components/auth-gate.tsx` sends anyone who has not signed in to `/login`.
   The session (`lib/session.ts`) is the email kept in the browser; there is no
   authentication yet.
-- `components/nda-creator.tsx` holds the form state and lays out the form
-  (`nda-form.tsx`) next to the document (`nda-document.tsx`).
-- The Standard Terms are shown word for word. The details you enter appear on
+- `components/nda-creator.tsx` holds the agreement's values and lays out the
+  chat (`nda-chat.tsx`) next to the document (`nda-document.tsx`).
+- `components/nda-chat.tsx` sends each message to the backend with the
+  conversation so far and the current values, and passes the changes that come
+  back to the creator. `applyChanges` in `lib/nda.ts` checks them before they
+  reach the document.
+- The Standard Terms are shown word for word. The details you give appear on
   the Cover Page, which is how the Common Paper Mutual NDA is designed to be
   completed.

@@ -3,6 +3,7 @@ import type { Content } from "pdfmake/interfaces";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { GeneratedDocument } from "@/components/generated-document";
 import { NdaDocument } from "@/components/nda-document";
+import { DISCLAIMER } from "@/lib/disclaimer";
 import type { DocumentSpec } from "@/lib/documents";
 import { defaultNdaForm } from "@/lib/nda";
 import { downloadPdf, pdfDefinition } from "@/lib/pdf";
@@ -138,6 +139,19 @@ describe("pdfDefinition", () => {
       ["(i) see https://commonpaper.com/pilot.", "block", 36],
     ]);
     expect(words(blocks[0])).toBe("Pilot Agreement");
+  });
+
+  test("warns at the foot of every page that the agreement is a draft", () => {
+    render(<article />);
+    const { footer, pageMargins } = pdfDefinition(screen.getByRole("article"));
+
+    type Foot = { margin: number[]; columns: { text: string; noWrap?: boolean }[] };
+    const foot = (footer as unknown as (page: number, pages: number) => Foot)(2, 7);
+
+    expect(foot.columns.map((column) => column.text)).toEqual([DISCLAIMER, "Page 2 of 7"]);
+    // Within the bottom margin, clear of the agreement's text.
+    expect(foot.margin).toEqual([pageMargins, 16, pageMargins, 0]);
+    expect(pageMargins).toBe(64);
   });
 
   test("uses a US Letter page", () => {

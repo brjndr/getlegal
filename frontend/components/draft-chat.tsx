@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { ChatError, converse, type ChatMessage } from "@/lib/api";
+import { ApiError, converse, type ChatMessage } from "@/lib/api";
 import type { DocumentSpec } from "@/lib/documents";
 import { applyTurn, emptyDraft, type Draft } from "@/lib/draft";
 import { todayIso } from "@/lib/nda";
@@ -21,17 +21,30 @@ function greeting(documents: DocumentSpec[]): ChatMessage {
   };
 }
 
+/** What a reply from the assistant left behind. */
+export type Turn = {
+  draft: Draft;
+  /** The conversation about the document, from the message that chose it. */
+  messages: ChatMessage[];
+  /** Whether the user chose this document in the message just answered. */
+  started: boolean;
+};
+
 export function DraftChat({
   documents,
   draft,
-  onDraft,
+  opened,
+  onTurn,
 }: {
   /** The documents the assistant can draft. */
   documents: DocumentSpec[];
   draft: Draft;
-  onDraft: (draft: Draft) => void;
+  /** The conversation so far, when carrying on with a saved document. */
+  opened?: ChatMessage[];
+  /** Called with the agreement and its conversation after each reply. */
+  onTurn: (turn: Turn) => void;
 }) {
-  const [messages, setMessages] = useState(() => [greeting(documents)]);
+  const [messages, setMessages] = useState(() => opened ?? [greeting(documents)]);
   // Where the conversation about the current document starts. Earlier messages are about
   // another document, and are not sent, so that nothing is carried over from it.
   const [since, setSince] = useState(0);
@@ -74,11 +87,16 @@ export function DraftChat({
         turn = await converse(current, from(start), today, true);
       }
       if (!turn.reply) throw new Error("The assistant said nothing");
+      const answered: ChatMessage[] = [...conversation, { role: "assistant", content: turn.reply }];
       setSince(start);
-      setMessages([...conversation, { role: "assistant", content: turn.reply }]);
-      onDraft(applyTurn(current, turn));
+      setMessages(answered);
+      onTurn({
+        draft: applyTurn(current, turn),
+        messages: answered.slice(start),
+        started: current !== draft,
+      });
     } catch (failure) {
-      setError(failure instanceof ChatError ? failure.message : FAILED);
+      setError(failure instanceof ApiError ? failure.message : FAILED);
     } finally {
       setPending(false);
       focusInput();
@@ -129,14 +147,18 @@ export function DraftChat({
           </p>
         ))}
         {pending && (
-          <p role="status" className="text-sm text-muted">
+          <p role="status" className="flex items-center gap-2 text-sm text-muted">
+            <span
+              aria-hidden="true"
+              className="size-3 animate-spin rounded-full border-2 border-rule border-t-pen"
+            />
             Thinking…
           </p>
         )}
       </div>
 
       {error && (
-        <div role="alert" className="flex items-start gap-3 px-4 pb-3 text-sm text-red-700 sm:px-6">
+        <div role="alert" className="flex items-start gap-3 px-4 pb-3 text-sm text-danger sm:px-6">
           <p className="flex-1">{error}</p>
           <button
             type="button"

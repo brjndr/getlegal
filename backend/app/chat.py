@@ -82,6 +82,8 @@ Other documents:
 - "document" is null unless the user's latest message clearly asks to draft a different document \
 from the list below. Then set it to that document's id and leave every other field null. Never \
 set it because a document is only mentioned, or to the document already being drafted.
+- Details of the agreement, such as its dates, length, fees or governing law, are answers about \
+the document being drafted. They are never a request for a different one.
 - If the user asks for a kind of document that is not in the list, say plainly that you cannot \
 generate it, and name the closest document in the list and what it covers. Do not set "document" \
 until the user says they want that one.
@@ -432,6 +434,16 @@ def close_reply(reply: str, suggested: str | None, question: str | None, done: s
     return f"{reply[:room]} {closing}".strip()
 
 
+def is_switch(document: str | None, fresh: bool, changed: dict) -> bool:
+    """Whether the user asked for the other document that the model named.
+
+    Not straight after choosing this one: the message that chose it would choose again. And not
+    when the message filled in fields of this one: the model often names another document while
+    recording an answer, which is no request to abandon the agreement.
+    """
+    return bool(document) and not fresh and not changed
+
+
 def respond(request: ChatRequest) -> ChatResponse:
     """Asks the model for the next message and the fields the user has just given."""
     messages = [
@@ -440,11 +452,10 @@ def respond(request: ChatRequest) -> ChatResponse:
         *(message.model_dump() for message in request.messages),
     ]
     update = ask(messages, NdaUpdate)
-    # Not straight after choosing this one: the message that chose it would choose again.
-    if update.document and not request.fresh:
+    changed = changes(update, request.form, request.today)
+    if is_switch(update.document, request.fresh, changed):
         return ChatResponse(reply="", changes={}, settled=request.settled, document=update.document)
 
-    changed = changes(update, request.form, request.today)
     was_open = open_questions(request.form, set(request.settled))
     settled = set(request.settled) | _answered(update, asked=next(iter(was_open), None))
     still_open = open_questions(_apply(request.form, changed), settled)

@@ -1,6 +1,8 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
+from tests.conftest import PAGES
 
 
 def test_serves_the_home_page(client):
@@ -10,9 +12,11 @@ def test_serves_the_home_page(client):
     assert "Home" in response.text
 
 
-def test_serves_the_login_page_with_or_without_a_trailing_slash(client):
-    assert "Sign in" in client.get("/login/").text
-    assert "Sign in" in client.get("/login").text
+@pytest.mark.parametrize(("page", "heading"), PAGES.items())
+def test_serves_each_page_with_or_without_a_trailing_slash(anonymous, page, heading):
+    # To anyone: a page is only the screen, and what it shows comes from the API.
+    assert heading in anonymous.get(f"/{page}/").text
+    assert heading in anonymous.get(f"/{page}").text
 
 
 def test_unknown_pages_get_the_not_found_page(client):

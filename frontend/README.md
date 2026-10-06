@@ -38,12 +38,25 @@ suite. They also check that every variable in a template is one its entry in
   fetches when one of those documents is chosen.
 - The build is a static export (`out/`), which the backend serves. Nothing in
   the app can depend on a Next.js server at run time.
-- `components/auth-gate.tsx` sends anyone who has not signed in to `/login`.
-  The session (`lib/session.ts`) is the email kept in the browser; there is no
-  authentication yet.
+- `components/app-shell.tsx` frames every screen of the platform with the
+  header and footer. Inside it, `components/auth-gate.tsx` sends anyone who has
+  not signed in to `/login`. `components/auth-form.tsx` is both the sign-in
+  and the sign-up screen.
+- The session is a cookie that scripts cannot read, so `lib/session.ts` asks
+  the backend who is signed in. Whenever the backend answers that nobody is,
+  `lib/api.ts` tells the session, which sends the user to sign in again.
 - `components/workspace.tsx` holds the draft (`lib/draft.ts`) and lays out the
   chat (`draft-chat.tsx`) next to the document: `nda-document.tsx` for the
-  Mutual NDA, `generated-document.tsx` for the others.
+  Mutual NDA, `generated-document.tsx` for the others. On a phone it shows one
+  of the two at a time.
+- After each reply the workspace saves the agreement and its conversation
+  (`lib/use-autosave.ts`). Saves are made one at a time and in order, because
+  the first one comes back with the id that the rest save to.
+- `components/workspace-loader.tsx` opens the saved document that the address
+  names (`/?doc=12`), and puts a new document's id in the address once it is
+  saved, so that reloading the page comes back to it. A static export cannot
+  have a page per document, which is why the id is in the query.
+- `components/document-list.tsx` is the My documents page.
 - `components/draft-chat.tsx` sends each message to the backend with the
   conversation so far and the current values, and passes the updated draft
   back to the workspace. When the assistant answers that the user chose a
@@ -55,4 +68,5 @@ suite. They also check that every variable in a template is one its entry in
   parties are named, and each of your other values is shown beside the term
   it defines.
 - `lib/pdf.ts` builds the PDF from the agreement as it is shown on the page,
-  using pdfmake, which is loaded only when the button is pressed.
+  using pdfmake, which is loaded only when the button is pressed. It adds the
+  warning in `lib/disclaimer.ts` to the foot of every page.

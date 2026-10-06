@@ -39,7 +39,14 @@ jobs:
           curl --fail --silent --retry 10 --retry-delay 2 --retry-all-errors http://localhost:8000/api/health
           curl --fail --silent --output /dev/null http://localhost:8000/
           curl --fail --silent --output /dev/null http://localhost:8000/login/
-          curl --fail --silent --header "Content-Type: application/json" \
-            --data '{"email": "ci@example.com", "password": ""}' http://localhost:8000/api/login
+          curl --fail --silent --output /dev/null http://localhost:8000/signup/
+          curl --fail --silent --output /dev/null http://localhost:8000/documents/
+      - name: Check that an account can be created and that only its owner gets in
+        run: |
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://localhost:8000/api/documents)" = 401
+          curl --fail --silent --cookie-jar cookies.txt --header "Content-Type: application/json" \
+            --data '{"email": "ci@example.com", "password": "correct horse"}' http://localhost:8000/api/signup
+          curl --fail --silent --cookie cookies.txt http://localhost:8000/api/me
+          curl --fail --silent --cookie cookies.txt http://localhost:8000/api/documents
       - run: scripts/stop-linux.sh
         if: always()

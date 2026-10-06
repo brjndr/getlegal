@@ -1,7 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { DraftChat } from "@/components/draft-chat";
+import { DraftChat, type Turn } from "@/components/draft-chat";
+import type { ChatMessage } from "@/lib/api";
 import type { DocumentSpec } from "@/lib/documents";
 import { emptyDraft, type Draft } from "@/lib/draft";
 import { defaultNdaForm } from "@/lib/nda";
@@ -13,6 +14,7 @@ const DOCUMENTS: DocumentSpec[] = [
 ];
 
 const onDraft = vi.fn<(draft: Draft) => void>();
+const onTurn = vi.fn<(turn: Turn) => void>();
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -24,19 +26,22 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   onDraft.mockReset();
+  onTurn.mockReset();
 });
 
 /** Keeps the draft the chat reports, as the page around it does. */
-function Page({ start }: { start: Draft }) {
+function Page({ start, opened }: { start: Draft; opened?: ChatMessage[] }) {
   const [draft, setDraft] = useState(start);
   return (
     <>
       <DraftChat
         documents={DOCUMENTS}
         draft={draft}
-        onDraft={(next) => {
-          onDraft(next);
-          setDraft(next);
+        opened={opened}
+        onTurn={(turn) => {
+          onDraft(turn.draft);
+          onTurn(turn);
+          setDraft(turn.draft);
         }}
       />
       <button>Download PDF</button>
@@ -44,8 +49,8 @@ function Page({ start }: { start: Draft }) {
   );
 }
 
-function renderChat(document: string | null = "pilot-agreement") {
-  render(<Page start={emptyDraft(document)} />);
+function renderChat(document: string | null = "pilot-agreement", opened?: ChatMessage[]) {
+  render(<Page start={emptyDraft(document)} opened={opened} />);
   return within(screen.getByRole("log"));
 }
 
@@ -427,5 +432,87 @@ describe("DraftChat", () => {
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("couldn’t reply");
     expect(alert.textContent).not.toContain("422");
+  });
+
+  test("hands over the agreement and the conversation about it after each reply", async () => {
+    assistantAnswers(
+      says("Noted.", { providerCompany: "Acme Inc." }),
+      chooses("csa"),
+      says("Starting a Cloud Service Agreement."),
+      says("Got it.", { customerCompany: "Globex LLC" }),
+    );
+    renderChat();
+
+    send("Acme provides it");
+    await screen.findByText("Noted.");
+    send("Make it a cloud service agreement");
+    await screen.findByText("Starting a Cloud Service Agreement.");
+    send("Globex is the customer");
+    await screen.findByText("Got it.");
+
+    const turns = onTurn.mock.calls.map(([turn]) => ({
+      ...turn,
+      draft: turn.draft.document,
+      messages: contents(turn.messages),
+    }));
+    expect(turns).toEqual([
+      {
+        draft: "pilot-agreement",
+        messages: [expect.stringContaining("Which do you need?"), "Acme provides it", "Noted."],
+        started: false,
+      },
+      {
+        draft: "csa",
+        // Only what was said about the new document, from the message that asked for it.
+        messages: ["Make it a cloud service agreement", "Starting a Cloud Service Agreement."],
+        started: true,
+      },
+      {
+        draft: "csa",
+        messages: [
+          "Make it a cloud service agreement",
+          "Starting a Cloud Service Agreement.",
+          "Globex is the customer",
+          "Got it.",
+        ],
+        started: false,
+      },
+    ]);
+  });
+
+  test("hands nothing over when the assistant fails", async () => {
+    assistantAnswers(fails(502, { detail: "The assistant couldn’t reply just now." }));
+    renderChat();
+
+    send("Acme provides it");
+    await screen.findByRole("alert");
+
+    expect(onTurn).not.toHaveBeenCalled();
+  });
+
+  test("carries on with the conversation of a saved document", async () => {
+    const opened: ChatMessage[] = [
+      { role: "user", content: "A pilot for Acme" },
+      { role: "assistant", content: "Who is the customer?" },
+    ];
+    const { fetch, request } = assistantAnswers(says("Thanks. Who signs for Globex?"));
+    const conversation = renderChat("pilot-agreement", opened);
+
+    // There is no greeting: the conversation is the one that was saved.
+    expect(contents(opened)).toEqual(
+      conversation.getAllByText(/./, { selector: "p" }).map((message) => message.lastChild?.textContent),
+    );
+    expect(fetch).not.toHaveBeenCalled();
+
+    send("Globex");
+    await screen.findByText("Thanks. Who signs for Globex?");
+
+    expect(contents(request(0).messages)).toEqual(["A pilot for Acme", "Who is the customer?", "Globex"]);
+    expect(contents(onTurn.mock.calls[0][0].messages)).toEqual([
+      "A pilot for Acme",
+      "Who is the customer?",
+      "Globex",
+      "Thanks. Who signs for Globex?",
+    ]);
   });
 });

@@ -294,6 +294,17 @@ def test_draft_hands_over_when_the_user_asks_for_another_document(client, model)
     assert response.json() == {"reply": "", "changes": {}, "document": "csa"}
 
 
+def test_draft_stays_with_the_document_when_the_message_answers_a_question(client, model):
+    # The model names another document while recording an answer, which is not a request for it.
+    model.says("Ninety days it is.", document="partnership-agreement", pilotPeriod="90 days")
+
+    response = ask(client, "The pilot runs 90 days", values=ACME).json()
+
+    assert "document" not in response
+    assert response["changes"] == {"pilotPeriod": "90 days"}
+    assert response["reply"].startswith("Ninety days it is. ")
+
+
 def test_draft_stays_with_a_document_the_user_has_only_just_chosen(client, model):
     model.says("Starting a Pilot Agreement.", document="csa", providerCompany="Acme Inc.")
 

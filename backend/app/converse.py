@@ -175,15 +175,14 @@ def respond(request: DraftRequest) -> DraftResponse:
         *(message.model_dump() for message in request.messages),
     ]
     update = chat.ask(messages, schema(request.document))
-    # Not straight after choosing this one: the message that chose it would choose again.
-    if update.document and not request.fresh:
+    changed = _changes(doc, update, values) if doc else {}
+    if chat.is_switch(update.document, request.fresh, changed):
         return DraftResponse(reply="", changes={}, document=update.document)
     if doc is None:
         return DraftResponse(
             reply=chat.close_reply(update.reply, update.nextQuestion, CHOOSE), changes={}
         )
 
-    changed = _changes(doc, update, values)
     # Only believed for the question that was just put to the user: the model sometimes reports
     # an agreement the user did not give.
     if update.acceptsAsked and was_open:

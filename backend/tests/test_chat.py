@@ -227,7 +227,8 @@ def test_chat_shortens_a_reply_too_long_to_send_back_but_keeps_the_question(clie
 
 
 def test_chat_hands_over_when_the_user_asks_for_another_document(client, model):
-    model.says("Switching.", document="pilot-agreement", governingLaw="Delaware")
+    # A value the form already has is not something the message filled in.
+    model.says("Switching.", document="pilot-agreement", mndaTermYears="1")
 
     response = ask(client, "Actually I need a pilot agreement", settled=["purpose"])
 
@@ -238,6 +239,17 @@ def test_chat_hands_over_when_the_user_asks_for_another_document(client, model):
         "settled": ["purpose"],
         "document": "pilot-agreement",
     }
+
+
+def test_chat_stays_with_the_nda_when_the_message_answers_a_question(client, model):
+    # The model names another document while recording an answer, which is not a request for it.
+    model.says("Delaware law it is.", document="partnership-agreement", governingLaw="Delaware")
+
+    response = ask(client, "Governed by Delaware law").json()
+
+    assert "document" not in response
+    assert response["changes"] == {"governingLaw": "Delaware"}
+    assert response["reply"].startswith("Delaware law it is. ")
 
 
 def test_chat_stays_with_the_nda_when_the_user_has_only_just_chosen_it(client, model):

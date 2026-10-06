@@ -1,34 +1,163 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { ChatError, converse, fetchTemplates, login, type ChatMessage } from "@/lib/api";
+import {
+  ApiError,
+  converse,
+  deleteDocument,
+  fetchTemplates,
+  getMe,
+  listDocuments,
+  onSignedOut,
+  openDocument,
+  saveDocument,
+  signIn,
+  signOut,
+  signUp,
+  type ChatMessage,
+} from "@/lib/api";
 import { emptyDraft } from "@/lib/draft";
 import { defaultNdaForm } from "@/lib/nda";
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  onSignedOut(() => {});
 });
 
-describe("login", () => {
-  test("posts the credentials to the backend and returns the user", async () => {
-    const fetch = vi.fn(async () => Response.json({ id: 7, email: "ada@example.com" }));
-    vi.stubGlobal("fetch", fetch);
+const ADA = { id: 7, email: "ada@example.com" };
+const JSON_HEADERS = { "Content-Type": "application/json" };
 
-    const user = await login("ada@example.com", "secret");
+function backendSays(respond: () => Response) {
+  const fetch = vi.fn(async () => respond());
+  vi.stubGlobal("fetch", fetch);
+  return fetch;
+}
 
-    expect(user).toEqual({ id: 7, email: "ada@example.com" });
-    expect(fetch).toHaveBeenCalledExactlyOnceWith("/api/login", {
+describe("accounts", () => {
+  test.each([
+    ["signs in", signIn, "/api/login"],
+    ["signs up", signUp, "/api/signup"],
+  ])("%s with the credentials and returns the user", async (_, send, path) => {
+    const fetch = backendSays(() => Response.json(ADA));
+
+    const user = await send("ada@example.com", "secret");
+
+    expect(user).toEqual(ADA);
+    expect(fetch).toHaveBeenCalledExactlyOnceWith(path, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      headers: JSON_HEADERS,
       body: JSON.stringify({ email: "ada@example.com", password: "secret" }),
     });
   });
 
-  test("fails when the backend rejects the request", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response("{}", { status: 422 })),
-    );
+  test("asks who is signed in", async () => {
+    const fetch = backendSays(() => Response.json(ADA));
 
-    await expect(login("not an email", "")).rejects.toThrow("status 422");
+    expect(await getMe()).toEqual(ADA);
+    expect(fetch).toHaveBeenCalledExactlyOnceWith("/api/me", {
+      method: "GET",
+      credentials: "include",
+    });
+  });
+
+  test("signs out, which the backend answers with nothing", async () => {
+    const fetch = backendSays(() => new Response(null, { status: 204 }));
+
+    expect(await signOut()).toBeUndefined();
+    expect(fetch).toHaveBeenCalledExactlyOnceWith("/api/logout", {
+      method: "POST",
+      credentials: "include",
+    });
+  });
+
+  test("fails with the backend's explanation of what was wrong", async () => {
+    backendSays(() => Response.json({ detail: "Incorrect email or password." }, { status: 401 }));
+
+    const failure = signIn("ada@example.com", "wrong");
+
+    await expect(failure).rejects.toBeInstanceOf(ApiError);
+    await expect(failure).rejects.toThrow("Incorrect email or password.");
+    await expect(failure).rejects.toMatchObject({ status: 401 });
+  });
+
+  test("fails with the status when the backend lists problems with the request", async () => {
+    backendSays(() => Response.json({ detail: [{}] }, { status: 422 }));
+
+    await expect(signUp("not an email", "")).rejects.toThrow("POST /api/signup failed with status 422");
+  });
+});
+
+describe("the session", () => {
+  test("is reported as ended when the backend says nobody is signed in", async () => {
+    const ended = vi.fn();
+    onSignedOut(ended);
+    backendSays(() => Response.json({ detail: "Sign in to continue." }, { status: 401 }));
+
+    await expect(listDocuments()).rejects.toThrow("Sign in to continue.");
+
+    expect(ended).toHaveBeenCalledTimes(1);
+  });
+
+  test.each([403, 404, 500, 502])("is left alone by a failure with status %i", async (status) => {
+    const ended = vi.fn();
+    onSignedOut(ended);
+    backendSays(() => new Response("", { status }));
+
+    await expect(listDocuments()).rejects.toThrow(`status ${status}`);
+
+    expect(ended).not.toHaveBeenCalled();
+  });
+});
+
+describe("saved documents", () => {
+  const summary = { id: 3, document: "csa", parties: "Acme", updatedAt: "2026-10-06T10:00:00Z" };
+  const state = {
+    draft: { ...emptyDraft("csa"), document: "csa", values: { providerCompany: "Acme" } },
+    messages: [{ role: "assistant" as const, content: "Who is the customer?" }],
+  };
+
+  test("lists the user's documents", async () => {
+    const fetch = backendSays(() => Response.json([summary]));
+
+    expect(await listDocuments()).toEqual([summary]);
+    expect(fetch).toHaveBeenCalledExactlyOnceWith("/api/documents", {
+      method: "GET",
+      credentials: "include",
+    });
+  });
+
+  test("opens a document", async () => {
+    const fetch = backendSays(() => Response.json({ ...summary, ...state }));
+
+    expect(await openDocument(3)).toEqual({ ...summary, ...state });
+    expect(fetch).toHaveBeenCalledExactlyOnceWith("/api/documents/3", {
+      method: "GET",
+      credentials: "include",
+    });
+  });
+
+  test.each([
+    ["a new document", null, "/api/documents", "POST"],
+    ["over a saved document", 3, "/api/documents/3", "PUT"],
+  ])("saves %s", async (_, id, path, method) => {
+    const fetch = backendSays(() => Response.json(summary));
+
+    expect(await saveDocument(id, state)).toEqual(summary);
+    expect(fetch).toHaveBeenCalledExactlyOnceWith(path, {
+      method,
+      credentials: "include",
+      headers: JSON_HEADERS,
+      body: JSON.stringify(state),
+    });
+  });
+
+  test("deletes a document", async () => {
+    const fetch = backendSays(() => new Response(null, { status: 204 }));
+
+    expect(await deleteDocument(3)).toBeUndefined();
+    expect(fetch).toHaveBeenCalledExactlyOnceWith("/api/documents/3", {
+      method: "DELETE",
+      credentials: "include",
+    });
   });
 });
 
@@ -46,7 +175,8 @@ describe("converse", () => {
     expect(result).toEqual(turn);
     expect(fetch).toHaveBeenCalledExactlyOnceWith("/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      headers: JSON_HEADERS,
       body: JSON.stringify({
         messages,
         form: defaultNdaForm,
@@ -71,7 +201,8 @@ describe("converse", () => {
     expect(result).toEqual(turn);
     expect(fetch).toHaveBeenCalledExactlyOnceWith("/api/draft", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      headers: JSON_HEADERS,
       body: JSON.stringify({ messages, document, values, today: "2026-10-04", fresh: false }),
     });
   });
@@ -84,7 +215,7 @@ describe("converse", () => {
 
     const failure = converse(nda, messages, "2026-10-04", false);
 
-    await expect(failure).rejects.toBeInstanceOf(ChatError);
+    await expect(failure).rejects.toBeInstanceOf(ApiError);
     await expect(failure).rejects.toThrow("Not set up yet.");
   });
 
@@ -96,7 +227,7 @@ describe("converse", () => {
 
     const failure = converse(nda, messages, "2026-10-04", false);
 
-    await expect(failure).rejects.not.toBeInstanceOf(ChatError);
+    await expect(failure).rejects.not.toBeInstanceOf(ApiError);
     await expect(failure).rejects.toThrow(/status (502|422)/);
   });
 });

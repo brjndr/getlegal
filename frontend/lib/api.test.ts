@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { chat, ChatError, login, type ChatMessage } from "@/lib/api";
+import { ChatError, converse, fetchTemplates, login, type ChatMessage } from "@/lib/api";
+import { emptyDraft } from "@/lib/draft";
 import { defaultNdaForm } from "@/lib/nda";
 
 afterEach(() => {
@@ -31,15 +32,16 @@ describe("login", () => {
   });
 });
 
-describe("chat", () => {
+describe("converse", () => {
   const messages: ChatMessage[] = [{ role: "user", content: "Acme and Globex" }];
+  const nda = { ...emptyDraft("mutual-nda"), settled: ["purpose"] };
 
-  test("posts the conversation to the backend and returns the assistant's turn", async () => {
+  test("posts the Mutual NDA to its own chat and returns the assistant's turn", async () => {
     const turn = { reply: "Noted.", changes: { governingLaw: "Delaware" }, settled: ["purpose"] };
     const fetch = vi.fn(async () => Response.json(turn));
     vi.stubGlobal("fetch", fetch);
 
-    const result = await chat(messages, defaultNdaForm, ["purpose"], "2026-10-04");
+    const result = await converse(nda, messages, "2026-10-04", true);
 
     expect(result).toEqual(turn);
     expect(fetch).toHaveBeenCalledExactlyOnceWith("/api/chat", {
@@ -50,7 +52,27 @@ describe("chat", () => {
         form: defaultNdaForm,
         settled: ["purpose"],
         today: "2026-10-04",
+        fresh: true,
       }),
+    });
+  });
+
+  test.each([
+    ["another document", "pilot-agreement", { product: "Widgets" }],
+    ["no document yet", null, {}],
+  ])("posts %s to the chat for the other documents", async (_, document, values) => {
+    const turn = { reply: "Noted.", changes: { pilotPeriod: "90 days" } };
+    const fetch = vi.fn(async () => Response.json(turn));
+    vi.stubGlobal("fetch", fetch);
+
+    const draft = { ...emptyDraft(document), values };
+    const result = await converse(draft, messages, "2026-10-04", false);
+
+    expect(result).toEqual(turn);
+    expect(fetch).toHaveBeenCalledExactlyOnceWith("/api/draft", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages, document, values, today: "2026-10-04", fresh: false }),
     });
   });
 
@@ -60,7 +82,7 @@ describe("chat", () => {
       vi.fn(async () => Response.json({ detail: "Not set up yet." }, { status: 503 })),
     );
 
-    const failure = chat(messages, defaultNdaForm, [], "2026-10-04");
+    const failure = converse(nda, messages, "2026-10-04", false);
 
     await expect(failure).rejects.toBeInstanceOf(ChatError);
     await expect(failure).rejects.toThrow("Not set up yet.");
@@ -72,9 +94,27 @@ describe("chat", () => {
   ])("fails with the status when the backend %s", async (_, respond) => {
     vi.stubGlobal("fetch", vi.fn(async () => respond()));
 
-    const failure = chat(messages, defaultNdaForm, [], "2026-10-04");
+    const failure = converse(nda, messages, "2026-10-04", false);
 
     await expect(failure).rejects.not.toBeInstanceOf(ChatError);
     await expect(failure).rejects.toThrow(/status (502|422)/);
+  });
+});
+
+describe("fetchTemplates", () => {
+  test("tries again after a failure, then fetches the agreements only once", async () => {
+    const templates = { csa: { title: "Cloud Service Agreement", clauses: [] } };
+    const fetch = vi
+      .fn()
+      .mockImplementationOnce(async () => new Response("Not found", { status: 404 }))
+      .mockImplementation(async () => Response.json(templates));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(fetchTemplates()).rejects.toThrow("status 404");
+    expect(await fetchTemplates()).toEqual(templates);
+    expect(await fetchTemplates()).toEqual(templates);
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledWith("/templates.json");
   });
 });

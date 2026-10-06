@@ -1,13 +1,14 @@
 import { AuthGate } from "@/components/auth-gate";
-import { NdaCreator } from "@/components/nda-creator";
 import { SignOutButton } from "@/components/sign-out-button";
+import { Workspace } from "@/components/workspace";
+import { loadSpecs } from "@/lib/load-documents";
 import { loadStandardTerms } from "@/lib/standard-terms";
 
 export default async function Home() {
-  const clauses = await loadStandardTerms();
+  const [documents, clauses] = await Promise.all([loadSpecs(), loadStandardTerms()]);
   return (
     <AuthGate>
-      <NdaCreator clauses={clauses} headerExtra={<SignOutButton />} />
+      <Workspace documents={documents} clauses={clauses} headerExtra={<SignOutButton />} />
     </AuthGate>
   );
 }

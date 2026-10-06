@@ -17,19 +17,23 @@ class FakeModel:
 
     def __call__(self, **kwargs):
         self.calls.append(kwargs)
-        if isinstance(self.answer, Exception):
-            raise self.answer
-        return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content=self.answer))]
-        )
+        answer = self.answer(kwargs["response_format"]) if callable(self.answer) else self.answer
+        if isinstance(answer, Exception):
+            raise answer
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=answer))])
 
     def says(self, reply="OK", **fields):
         """Answers with this reply, changing only the given fields."""
-        unchanged = {
-            name: False if name.startswith("keeps") else None
-            for name in chat.NdaUpdate.model_fields
-        }
-        self.answer = json.dumps({**unchanged, "reply": reply, **fields})
+
+        def answer(schema):
+            # Worked out from the schema of the request, which differs from document to document.
+            unchanged = {
+                name: False if field.annotation is bool else None
+                for name, field in schema.model_fields.items()
+            }
+            return json.dumps({**unchanged, "reply": reply, **fields})
+
+        self.answer = answer
 
 
 @pytest.fixture(autouse=True)

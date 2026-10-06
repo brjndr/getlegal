@@ -1,8 +1,8 @@
 # getlegal frontend
 
-A Next.js app for creating a Mutual NDA. Chat with the AI assistant and the
-agreement fills in alongside the conversation; **Download PDF** opens the
-browser's print dialog, where you choose "Save as PDF".
+A Next.js app for drafting legal agreements. Chat with the AI assistant and
+the agreement fills in alongside the conversation; **Download PDF** saves it as
+a PDF file.
 
 ## Running locally
 
@@ -22,26 +22,37 @@ npm run lint
 npm run build
 ```
 
-The tests compare the Standard Terms shown in the app against
-`../templates/Mutual-NDA.md`, so a parsing change that drops or alters any of
-the agreement text fails the suite.
+The tests compare the agreement text the app reads against the files in
+`../templates/`, so a parsing change that drops or alters any of it fails the
+suite. They also check that every variable in a template is one its entry in
+`../documents/specs.json` knows how to show.
 
 ## How it fits together
 
-- `app/page.tsx` reads the Standard Terms from `../templates/Mutual-NDA.md` at
-  build time (`lib/standard-terms.ts`), so the repo's templates stay the single
-  source of the agreement text.
+- `app/page.tsx` reads the list of documents from `../documents/specs.json`
+  and the Mutual NDA's Standard Terms from `../templates/Mutual-NDA.md` at
+  build time, so the repo's templates stay the single source of the agreement
+  text.
+- `app/templates.json/route.ts` reads the other ten templates at build time
+  (`lib/template.ts`) and writes them to `out/templates.json`, which the page
+  fetches when one of those documents is chosen.
 - The build is a static export (`out/`), which the backend serves. Nothing in
   the app can depend on a Next.js server at run time.
 - `components/auth-gate.tsx` sends anyone who has not signed in to `/login`.
   The session (`lib/session.ts`) is the email kept in the browser; there is no
   authentication yet.
-- `components/nda-creator.tsx` holds the agreement's values and lays out the
-  chat (`nda-chat.tsx`) next to the document (`nda-document.tsx`).
-- `components/nda-chat.tsx` sends each message to the backend with the
-  conversation so far and the current values, and passes the changes that come
-  back to the creator. `applyChanges` in `lib/nda.ts` checks them before they
-  reach the document.
-- The Standard Terms are shown word for word. The details you give appear on
-  the Cover Page, which is how the Common Paper Mutual NDA is designed to be
-  completed.
+- `components/workspace.tsx` holds the draft (`lib/draft.ts`) and lays out the
+  chat (`draft-chat.tsx`) next to the document: `nda-document.tsx` for the
+  Mutual NDA, `generated-document.tsx` for the others.
+- `components/draft-chat.tsx` sends each message to the backend with the
+  conversation so far and the current values, and passes the updated draft
+  back to the workspace. When the assistant answers that the user chose a
+  document, the chat starts that document empty and sends the same message
+  again, so nothing is carried over from the previous one.
+- The Mutual NDA's Standard Terms are shown word for word, with the details
+  you give on its Cover Page. The other documents have no Cover Page template,
+  so one is generated from the document's fields. In their Standard Terms the
+  parties are named, and each of your other values is shown beside the term
+  it defines.
+- `lib/pdf.ts` builds the PDF from the agreement as it is shown on the page,
+  using pdfmake, which is loaded only when the button is pressed.

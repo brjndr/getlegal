@@ -4,11 +4,17 @@ on:
   pull_request:
     paths:
       - "backend/**"
+      - "documents/**"
+      - "templates/**"
+      - "catalog.json"
       - ".github/workflows/backend.yml"
   push:
     branches: [main]
     paths:
       - "backend/**"
+      - "documents/**"
+      - "templates/**"
+      - "catalog.json"
       - ".github/workflows/backend.yml"
 
 permissions:

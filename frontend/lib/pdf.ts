@@ -1,9 +1,11 @@
 import type { Content, ContentText, TDocumentDefinitions } from "pdfmake/interfaces";
+import { DISCLAIMER } from "@/lib/disclaimer";
 
 type Run = ContentText & { text: string };
 
 const BLANK = "______________";
 const INDENT_POINTS = 18;
+const PAGE_MARGIN = 64;
 
 /** The text inside an element, as runs that keep its bold text and links. */
 function runs(node: Node, style: Partial<Run> = {}): Run[] {
@@ -101,8 +103,19 @@ function block(element: HTMLElement): Content[] {
 export function pdfDefinition(article: HTMLElement): TDocumentDefinitions {
   return {
     pageSize: "LETTER",
-    pageMargins: 64,
+    pageMargins: PAGE_MARGIN,
     content: blocks(article),
+    // In the bottom margin of every page, so the warning goes wherever a page does.
+    footer: (page, pages) => ({
+      margin: [PAGE_MARGIN, 16, PAGE_MARGIN, 0],
+      fontSize: 7.5,
+      lineHeight: 1.15,
+      color: "#5b6470",
+      columns: [
+        { text: DISCLAIMER, width: "*" },
+        { text: `Page ${page} of ${pages}`, width: "auto", margin: [16, 0, 0, 0], noWrap: true },
+      ],
+    }),
     defaultStyle: { fontSize: 10.5, lineHeight: 1.3 },
     styles: {
       heading: { fontSize: 20, bold: true, margin: [0, 0, 0, 12] },

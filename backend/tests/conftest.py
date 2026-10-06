@@ -4,8 +4,12 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
-from app import chat
+from app import auth, chat
 from app.main import create_app
+
+PASSWORD = "correct horse"
+# The pages of the frontend besides the home page, each with the heading it shows.
+PAGES = {"login": "Sign in", "signup": "Create your account", "documents": "My documents"}
 
 
 class FakeModel:
@@ -52,19 +56,49 @@ def database(tmp_path, monkeypatch):
     return path
 
 
+@pytest.fixture(autouse=True)
+def quick_passwords(monkeypatch):
+    # Hashing a password is slow on purpose, and nearly every test signs up.
+    monkeypatch.setattr(auth, "SCRYPT", (2, 8, 1))
+
+
 @pytest.fixture
 def static_dir(tmp_path):
     """Stands in for the frontend's static export."""
     root = tmp_path / "static"
-    (root / "login").mkdir(parents=True)
+    root.mkdir()
     (root / "index.html").write_text("<h1>Home</h1>")
-    (root / "login" / "index.html").write_text("<h1>Sign in</h1>")
+    for page, heading in PAGES.items():
+        (root / page).mkdir()
+        (root / page / "index.html").write_text(f"<h1>{heading}</h1>")
     (root / "404.html").write_text("<h1>Not found</h1>")
     return root
 
 
 @pytest.fixture
-def client(static_dir):
+def anonymous(static_dir):
+    """A visitor who has not signed in."""
     # Entering the client runs the app's startup, which creates the database.
     with TestClient(create_app(static_dir)) as client:
         yield client
+
+
+@pytest.fixture
+def sign_up(anonymous):
+    """Creates an account and returns a client that is signed in to it."""
+
+    def sign_up(email, password=PASSWORD):
+        # Its own client, so its own cookies. Not entered: starting the app again would empty
+        # the database.
+        client = TestClient(anonymous.app)
+        response = client.post("/api/signup", json={"email": email, "password": password})
+        assert response.status_code == 201, response.text
+        return client
+
+    return sign_up
+
+
+@pytest.fixture
+def client(sign_up):
+    """A signed-in user."""
+    return sign_up("ada@example.com")

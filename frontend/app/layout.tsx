@@ -14,7 +14,7 @@ const newsreader = Newsreader({
 });
 
 export const metadata: Metadata = {
-  title: "Prelegal",
+  title: { default: "Prelegal", template: "%s · Prelegal" },
   description:
     "Chat with an assistant to draft a Common Paper legal agreement and download it as a PDF.",
 };

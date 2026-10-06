@@ -1,12 +1,14 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { Workspace } from "@/components/workspace";
-import { fetchTemplates } from "@/lib/api";
+import { fetchTemplates, saveDocument, type SavedDocument } from "@/lib/api";
+import { DISCLAIMER } from "@/lib/disclaimer";
 import type { DocumentSpec } from "@/lib/documents";
 import { loadSpecs, loadTemplates } from "@/lib/load-documents";
+import { defaultNdaForm } from "@/lib/nda";
 import { downloadPdf } from "@/lib/pdf";
 import { loadStandardTerms, type Clause } from "@/lib/standard-terms";
 import type { Template } from "@/lib/template";
@@ -15,6 +17,7 @@ vi.mock("@/lib/pdf", () => ({ downloadPdf: vi.fn() }));
 vi.mock("@/lib/api", async (original) => ({
   ...(await original<typeof import("@/lib/api")>()),
   fetchTemplates: vi.fn(),
+  saveDocument: vi.fn(),
 }));
 
 const TEMPLATE_PATH = path.join(process.cwd(), "..", "templates", "Mutual-NDA.md");
@@ -35,6 +38,14 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(2026, 9, 4, 9));
   vi.mocked(fetchTemplates).mockImplementation(async () => templates);
+  // Each new document is saved under the next id.
+  let saved = 0;
+  vi.mocked(saveDocument).mockImplementation(async (id, { draft }) => ({
+    id: id ?? ++saved,
+    document: draft.document,
+    parties: "",
+    updatedAt: "2026-10-04T16:00:00+00:00",
+  }));
 });
 
 afterEach(() => {
@@ -43,6 +54,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.mocked(downloadPdf).mockReset();
   vi.mocked(fetchTemplates).mockReset();
+  vi.mocked(saveDocument).mockReset();
 });
 
 let replies = 0;
@@ -88,16 +100,6 @@ describe("Workspace", () => {
       true,
     );
     expect(fetchTemplates).not.toHaveBeenCalled();
-  });
-
-  test("shows extra header content beside the download button", () => {
-    render(
-      <Workspace documents={documents} clauses={clauses} headerExtra={<button>Sign out</button>} />,
-    );
-
-    const header = within(screen.getByRole("banner"));
-    expect(header.getByRole("button", { name: "Sign out" })).toBeDefined();
-    expect(header.getByRole("button", { name: "Download PDF" })).toBeDefined();
   });
 
   test("leaves the agreement out of the server render, which has no document yet", () => {
@@ -252,7 +254,9 @@ describe("Workspace", () => {
 
       await tell({ document: "csa" }, {});
 
-      expect(screen.getByRole("main").textContent).toBe("Loading the Cloud Service Agreement…");
+      expect(within(screen.getByRole("main")).getByRole("status").textContent).toBe(
+        "Loading the Cloud Service Agreement…",
+      );
       const download = screen.getByRole("button", { name: "Download PDF" }) as HTMLButtonElement;
       expect(download.disabled).toBe(true);
 
@@ -312,5 +316,147 @@ describe("Workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Download PDF" }));
 
     expect(downloadPdf).toHaveBeenCalledExactlyOnceWith(screen.getByRole("article"), name);
+  });
+
+  test("warns that the agreement is a draft, beside it and not in it", async () => {
+    const agreement = await start("pilot-agreement");
+
+    expect(screen.getByRole("note").textContent).toBe(DISCLAIMER);
+    // The PDF is made from the agreement, and carries the warning at the foot of each page.
+    expect(agreement.queryByText(DISCLAIMER)).toBeNull();
+  });
+
+  test("shows the chat or the document on a phone, keeping both on the page", async () => {
+    await start("pilot-agreement");
+    const chat = screen.getByRole("complementary");
+    const agreement = screen.getByRole("main");
+    const hidden = (pane: HTMLElement) => pane.className.split(" ").includes("hidden");
+    const pressed = (name: string) =>
+      screen.getByRole("button", { name }).getAttribute("aria-pressed");
+    expect([pressed("Chat"), pressed("Document")]).toEqual(["true", "false"]);
+    expect([hidden(chat), hidden(agreement)]).toEqual([false, true]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Document" }));
+
+    expect([pressed("Chat"), pressed("Document")]).toEqual(["false", "true"]);
+    expect([hidden(chat), hidden(agreement)]).toEqual([true, false]);
+    // Hidden, not gone: the conversation and the agreement are both still there.
+    expect(within(chat).getByText(`Noted (${replies}).`)).toBeDefined();
+    expect(within(agreement).getByRole("article")).toBeDefined();
+  });
+
+  describe("saving", () => {
+    const saves = () =>
+      vi.mocked(saveDocument).mock.calls.map(([id, state]) => ({
+        id,
+        document: state.draft.document,
+        messages: state.messages.length,
+      }));
+
+    test("saves nothing until the user has chosen a document", async () => {
+      render(<Workspace documents={documents} clauses={clauses} />);
+
+      await tell({});
+
+      expect(saveDocument).not.toHaveBeenCalled();
+      expect(screen.queryByText("Saved")).toBeNull();
+    });
+
+    test("saves the agreement and its conversation after each reply", async () => {
+      const onSaved = vi.fn();
+      render(<Workspace documents={documents} clauses={clauses} onSaved={onSaved} />);
+
+      await tell({ document: "pilot-agreement" }, { changes: { providerCompany: "Acme Inc." } });
+      await screen.findByText("Saved");
+      await tell({ changes: { customerCompany: "Globex LLC" } });
+      await waitFor(() => expect(saveDocument).toHaveBeenCalledTimes(2));
+
+      // A new document first, then over the same one.
+      expect(saves()).toEqual([
+        { id: null, document: "pilot-agreement", messages: 2 },
+        { id: 1, document: "pilot-agreement", messages: 4 },
+      ]);
+      expect(vi.mocked(saveDocument).mock.calls[1][1].draft.values).toEqual({
+        providerCompany: "Acme Inc.",
+        customerCompany: "Globex LLC",
+      });
+      expect(onSaved).toHaveBeenCalledExactlyOnceWith(1);
+    });
+
+    test("saves a different document as a new one, leaving the first as it was", async () => {
+      const onSaved = vi.fn();
+      render(<Workspace documents={documents} clauses={clauses} onSaved={onSaved} />);
+      await tell({ document: "pilot-agreement" }, {});
+
+      await tell({ document: "mutual-nda" }, { changes: {}, settled: [] });
+      await tell({ changes: { governingLaw: "Delaware" } });
+      await waitFor(() => expect(saveDocument).toHaveBeenCalledTimes(3));
+
+      expect(saves()).toEqual([
+        { id: null, document: "pilot-agreement", messages: 2 },
+        { id: null, document: "mutual-nda", messages: 2 },
+        { id: 2, document: "mutual-nda", messages: 4 },
+      ]);
+      expect(onSaved.mock.calls).toEqual([[1], [2]]);
+    });
+
+    test("carries on with a saved document, saving over it", async () => {
+      const opened: SavedDocument = {
+        id: 7,
+        document: "pilot-agreement",
+        parties: "Acme Inc.",
+        updatedAt: "2026-10-01T16:00:00+00:00",
+        draft: {
+          document: "pilot-agreement",
+          form: defaultNdaForm,
+          values: { providerCompany: "Acme Inc." },
+          settled: [],
+        },
+        messages: [
+          { role: "user", content: "A pilot for Acme" },
+          { role: "assistant", content: "Who is the customer?" },
+        ],
+      };
+      const onSaved = vi.fn();
+      render(<Workspace documents={documents} clauses={clauses} opened={opened} onSaved={onSaved} />);
+
+      const agreement = within(await screen.findByRole("article"));
+      expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Pilot Agreement");
+      expect(agreement.getAllByText("Acme Inc.").length).toBeGreaterThan(0);
+      expect(screen.getByText("Who is the customer?")).toBeDefined();
+      expect(screen.getByText("Saved")).toBeDefined();
+      expect(screen.queryByText(/Which do you need/)).toBeNull();
+
+      const fetch = await tell({ changes: { customerCompany: "Globex LLC" } });
+      await waitFor(() => expect(saveDocument).toHaveBeenCalledTimes(1));
+
+      expect(body(fetch, 0)).toMatchObject({
+        document: "pilot-agreement",
+        values: { providerCompany: "Acme Inc." },
+        messages: [...opened.messages, { role: "user", content: "Here you go" }],
+      });
+      expect(saves()).toEqual([{ id: 7, document: "pilot-agreement", messages: 4 }]);
+      // It already had its id.
+      expect(onSaved).not.toHaveBeenCalled();
+    });
+
+    test("says when the agreement could not be saved, and saves it on request", async () => {
+      vi.mocked(saveDocument).mockRejectedValueOnce(new Error("offline"));
+      render(<Workspace documents={documents} clauses={clauses} />);
+
+      await tell({ document: "pilot-agreement" }, {});
+
+      expect(await screen.findByText("Not saved.")).toBeDefined();
+      // The agreement is still there to work on.
+      expect(screen.getByRole("article")).toBeDefined();
+
+      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+      expect(await screen.findByText("Saved")).toBeDefined();
+      expect(saves()).toEqual([
+        { id: null, document: "pilot-agreement", messages: 2 },
+        { id: null, document: "pilot-agreement", messages: 2 },
+      ]);
+    });
   });
 });

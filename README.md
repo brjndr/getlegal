@@ -18,9 +18,10 @@ system and open http://localhost:8000.
 | Linux | `scripts/start-linux.sh` | `scripts/stop-linux.sh` |
 | Windows | `scripts\start-windows.ps1` | `scripts\stop-windows.ps1` |
 
-Sign in with any email address. There is no authentication yet, so the
-password is not checked. The database is temporary: it starts empty every time
-the app starts.
+Create an account with an email address and a password of at least 8
+characters, then sign in with it whenever you come back. The database is
+temporary: it starts empty every time the app starts, which removes every
+account and saved document.
 
 You draft an agreement by chatting with an AI assistant. Tell it what you
 need and it picks one of the 11 document types in `catalog.json`, or says so when
@@ -29,19 +30,33 @@ about the agreement and fills in the document beside the chat as you answer.
 **Download PDF** saves the agreement as a PDF file. Without an API key the app
 still starts, but the assistant says it isn't set up.
 
+Each agreement is saved as you draft it. **My documents** lists the ones you
+have drafted: open one to carry on with it, or delete it. Every agreement is a
+draft that a lawyer should review, which the app says beside the document and
+at the foot of each page of the PDF.
+
 ## How it fits together
 
 Everything runs in one container, built by the `Dockerfile`:
 
 - `frontend/` is a Next.js app, built into static files.
 - `backend/` is a FastAPI app. It serves the API under `/api` and the built
-  frontend everywhere else, and keeps users in a SQLite database.
+  frontend everywhere else, and keeps users, their sessions and their saved
+  documents in a SQLite database.
+- Signing in (`backend/app/auth.py`) sets a cookie that scripts cannot read.
+  Every API route needs it except signing up, signing in, signing out and
+  `/api/health`. Passwords are stored as salted scrypt hashes. Set
+  `COOKIE_SECURE=1` when serving over HTTPS, so the cookie is never sent over
+  plain HTTP.
+- The browser saves a document after each reply from the assistant
+  (`backend/app/saved.py`, `/api/documents`): the agreement as it stands and
+  the conversation about it. A user can only reach their own.
 - The chat sends each message to a language model through OpenRouter, with
   Cerebras as the provider. The model returns the values the user gave, and
   the backend works out what is left to ask, so every reply ends with the next
-  question until nothing is missing. Nothing about a conversation is stored:
-  the browser sends the conversation and the current document with every
-  message.
+  question until nothing is missing. The chat itself keeps nothing between
+  messages: the browser sends the conversation and the current document with
+  every message.
 - The Mutual NDA has its own chat (`backend/app/chat.py`, `POST /api/chat`).
   The other documents, and choosing a document in the first place, go through
   `backend/app/converse.py` (`POST /api/draft`).
@@ -70,6 +85,8 @@ npm run dev
 ```
 
 On Windows, set the variable first with `$env:CORS_ORIGINS = "http://localhost:3000"`.
+Open the frontend as `localhost`, not `127.0.0.1`: the session cookie only
+travels between the two ports when both use the same host name.
 
 The backend reads the API key from `.env` in the repo root. The tests never
 call the model, so they need no key.

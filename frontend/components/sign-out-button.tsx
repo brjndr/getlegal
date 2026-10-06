@@ -1,21 +1,31 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { signOut } from "@/lib/api";
 import { clearSession } from "@/lib/session";
+import { plainButtonClass } from "@/lib/styles";
 
 export function SignOutButton() {
-  const router = useRouter();
+  const [pending, setPending] = useState(false);
 
-  function signOut() {
-    clearSession();
-    router.replace("/login");
+  async function leave() {
+    setPending(true);
+    try {
+      await signOut();
+      // With nobody signed in, the gate around the platform shows the login screen.
+      clearSession();
+    } catch {
+      // Still signed in: the browser keeps its session until the backend ends it.
+      setPending(false);
+    }
   }
 
   return (
     <button
       type="button"
-      onClick={signOut}
-      className="rounded-md px-2 py-2 text-sm font-medium text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pen"
+      onClick={leave}
+      disabled={pending}
+      className={plainButtonClass}
     >
       Sign out
     </button>

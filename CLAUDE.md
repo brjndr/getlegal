@@ -47,3 +47,23 @@ scripts/stop-windows.ps1
 ```
 Backend available at http://localhost:8000
 
+## Implementation status
+
+Updated 6 October 2026, after GL-5.
+
+Done:
+- GL-2: the 12 templates in `templates/`, listed in `catalog.json`.
+- GL-3: Mutual NDA creator with a live document preview and PDF download through the browser's print dialog.
+- GL-4: V1 foundation. FastAPI backend in `backend/` (uv), Next.js frontend built as a static export and served by FastAPI, SQLite with a `users` table recreated on every start, one Docker container run by the scripts in `scripts/`, and CI for the backend, the frontend and the container.
+- GL-5: AI chat for the Mutual NDA. `POST /api/chat` (`backend/app/chat.py`) follows the Cerebras skill with Structured Outputs; `frontend/components/nda-chat.tsx` replaced the form. PR #7, not yet merged.
+
+Not built yet:
+- Only the Mutual NDA can be drafted. The other templates are not wired up.
+- The login is fake: `/login` accepts any email, the password is not checked, and the API is unauthenticated.
+- No document persistence. A conversation lives in the browser and is lost on reload.
+
+Worth knowing:
+- The backend, not the model, decides which question to ask next (`open_questions` in `chat.py`). The model loses track of which defaults the user has confirmed.
+- LLM calls must set `allow_fallbacks: False` and `max_tokens`. Otherwise OpenRouter can silently switch provider and return corrupted fields. The Cerebras skill shows both.
+- Backend tests replace the model with a fake, so they need no API key and never reach the network.
+- The frontend is a static export, so nothing in it may need a Next.js server at run time.

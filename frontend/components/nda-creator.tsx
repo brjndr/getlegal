@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { NdaDocument } from "@/components/nda-document";
 import { NdaFormFields } from "@/components/nda-form";
 import { defaultNdaForm, todayIso, type NdaForm } from "@/lib/nda";
@@ -22,7 +22,14 @@ function pdfTitle(form: NdaForm): string {
     : "Mutual NDA";
 }
 
-export function NdaCreator({ clauses }: { clauses: Clause[] }) {
+export function NdaCreator({
+  clauses,
+  headerExtra,
+}: {
+  clauses: Clause[];
+  /** Shown in the header beside the download button. */
+  headerExtra?: ReactNode;
+}) {
   const [form, setForm] = useState(defaultNdaForm);
   const today = useToday();
   const effectiveDate = form.effectiveDate ?? today;
@@ -52,6 +59,7 @@ export function NdaCreator({ clauses }: { clauses: Clause[] }) {
           <p className="hidden text-sm text-muted md:block">
             Choose “Save as PDF” in the print dialog.
           </p>
+          {headerExtra}
           <button
             type="button"
             onClick={downloadPdf}

@@ -1,0 +1,43 @@
+name: Docker
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "templates/Mutual-NDA.md"
+      - "Dockerfile"
+      - ".dockerignore"
+      - "docker-compose.yml"
+      - "scripts/**"
+      - ".github/workflows/docker.yml"
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "templates/Mutual-NDA.md"
+      - "Dockerfile"
+      - ".dockerignore"
+      - "docker-compose.yml"
+      - "scripts/**"
+      - ".github/workflows/docker.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/start-linux.sh
+      - name: Check the app is serving the API and the frontend
+        run: |
+          curl --fail --silent --retry 10 --retry-delay 2 --retry-all-errors http://localhost:8000/api/health
+          curl --fail --silent --output /dev/null http://localhost:8000/
+          curl --fail --silent --output /dev/null http://localhost:8000/login/
+          curl --fail --silent --header "Content-Type: application/json" \
+            --data '{"email": "ci@example.com", "password": ""}' http://localhost:8000/api/login
+      - run: scripts/stop-linux.sh
+        if: always()

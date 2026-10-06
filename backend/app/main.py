@@ -3,12 +3,16 @@ import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator
 
-from app import db
+from app import chat, db
+
+# Picks up the API key from the repo's .env when running outside the container.
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 
@@ -55,6 +59,17 @@ def create_app(static_dir: Path | None = None) -> FastAPI:
     @app.post("/api/login")
     def login(request: LoginRequest) -> User:
         return User(**db.upsert_user(request.email))
+
+    @app.post("/api/chat")
+    def send_chat(request: chat.ChatRequest) -> chat.ChatResponse:
+        try:
+            return chat.respond(request)
+        except chat.ChatUnavailable:
+            raise HTTPException(
+                503, "The assistant isn’t set up yet: OPENROUTER_API_KEY is missing."
+            )
+        except chat.ChatFailed:
+            raise HTTPException(502, "The assistant couldn’t reply just now. Please try again.")
 
     static_dir = static_dir or Path(os.environ.get("STATIC_DIR", "static"))
     if static_dir.is_dir():

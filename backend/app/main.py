@@ -1,6 +1,6 @@
 import os
 import re
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator
 
-from app import chat, db
+from app import chat, converse, db
 
 # Picks up the API key from the repo's .env when running outside the container.
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
@@ -42,6 +42,17 @@ async def lifespan(app: FastAPI):
     yield
 
 
+@contextmanager
+def _chat_errors():
+    """Turns a failure of the assistant into a response the chat can show."""
+    try:
+        yield
+    except chat.ChatUnavailable:
+        raise HTTPException(503, "The assistant isn’t set up yet: OPENROUTER_API_KEY is missing.")
+    except chat.ChatFailed:
+        raise HTTPException(502, "The assistant couldn’t reply just now. Please try again.")
+
+
 def create_app(static_dir: Path | None = None) -> FastAPI:
     app = FastAPI(title="Prelegal", lifespan=lifespan)
 
@@ -60,16 +71,15 @@ def create_app(static_dir: Path | None = None) -> FastAPI:
     def login(request: LoginRequest) -> User:
         return User(**db.upsert_user(request.email))
 
-    @app.post("/api/chat")
+    @app.post("/api/chat", response_model_exclude_none=True)
     def send_chat(request: chat.ChatRequest) -> chat.ChatResponse:
-        try:
+        with _chat_errors():
             return chat.respond(request)
-        except chat.ChatUnavailable:
-            raise HTTPException(
-                503, "The assistant isn’t set up yet: OPENROUTER_API_KEY is missing."
-            )
-        except chat.ChatFailed:
-            raise HTTPException(502, "The assistant couldn’t reply just now. Please try again.")
+
+    @app.post("/api/draft", response_model_exclude_none=True)
+    def send_draft(request: converse.DraftRequest) -> converse.DraftResponse:
+        with _chat_errors():
+            return converse.respond(request)
 
     static_dir = static_dir or Path(os.environ.get("STATIC_DIR", "static"))
     if static_dir.is_dir():

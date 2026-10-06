@@ -1,63 +1,97 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { chat, ChatError, type ChatMessage } from "@/lib/api";
-import { todayIso, type NdaChanges, type NdaForm } from "@/lib/nda";
+import { ChatError, converse, type ChatMessage } from "@/lib/api";
+import type { DocumentSpec } from "@/lib/documents";
+import { applyTurn, emptyDraft, type Draft } from "@/lib/draft";
+import { todayIso } from "@/lib/nda";
 import { buttonClass, inputClass } from "@/lib/styles";
-
-// Shown straight away, so opening the page doesn't wait on the assistant.
-const GREETING: ChatMessage = {
-  role: "assistant",
-  content:
-    "Hi! I’ll help you draft a Mutual Non-Disclosure Agreement. Tell me about it in your own words and I’ll fill in the document as we go. To start, which two companies are entering into the NDA?",
-};
 
 // The backend accepts this many messages; older ones are left out of the request.
 const MAX_MESSAGES = 40;
 
 const FAILED = "The assistant couldn’t reply. Check your connection and try again.";
 
-export function NdaChat({
-  form,
-  onChanges,
+// Shown straight away, so opening the page doesn't wait on the assistant.
+function greeting(documents: DocumentSpec[]): ChatMessage {
+  const names = documents.map((document) => document.name).join(", ");
+  return {
+    role: "assistant",
+    content: `Hi! I’ll help you draft a legal agreement. Tell me about it in your own words and I’ll fill in the document as we go. I can prepare: ${names}. Which do you need?`,
+  };
+}
+
+export function DraftChat({
+  documents,
+  draft,
+  onDraft,
 }: {
-  form: NdaForm;
-  onChanges: (changes: NdaChanges) => void;
+  /** The documents the assistant can draft. */
+  documents: DocumentSpec[];
+  draft: Draft;
+  onDraft: (draft: Draft) => void;
 }) {
-  const [messages, setMessages] = useState([GREETING]);
-  const [settled, setSettled] = useState<string[]>([]);
-  const [draft, setDraft] = useState("");
+  const [messages, setMessages] = useState(() => [greeting(documents)]);
+  // Where the conversation about the current document starts. Earlier messages are about
+  // another document, and are not sent, so that nothing is carried over from it.
+  const [since, setSince] = useState(0);
+  const [typed, setTyped] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const log = useRef<HTMLDivElement>(null);
+  const form = useRef<HTMLFormElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     // Keeps the newest message in view. Scrolls the conversation only, never the page.
     if (log.current) log.current.scrollTop = log.current.scrollHeight;
   }, [messages, pending]);
 
+  /** Puts the cursor back in the message box, unless the user has gone to use something else. */
+  function focusInput() {
+    const active = document.activeElement;
+    // Pressing Send leaves the focus on a button that is then disabled, where typing is lost.
+    if (!active || active === document.body || form.current?.contains(active)) {
+      input.current?.focus();
+    }
+  }
+
   /** Asks the assistant to answer the conversation, which ends with a message from the user. */
   async function reply(conversation: ChatMessage[]) {
     setPending(true);
     setError(null);
+    const today = todayIso();
+    const from = (start: number) => conversation.slice(start).slice(-MAX_MESSAGES);
     try {
-      const turn = await chat(conversation.slice(-MAX_MESSAGES), form, settled, todayIso());
+      let current = draft;
+      let start = since;
+      let turn = await converse(current, from(start), today, false);
+      if (documents.some((document) => document.id === turn.document)) {
+        // The user chose a document, or a different one. It starts empty, and the assistant
+        // reads the message again as the first one about that document.
+        current = emptyDraft(turn.document);
+        start = conversation.length - 1;
+        turn = await converse(current, from(start), today, true);
+      }
+      if (!turn.reply) throw new Error("The assistant said nothing");
+      setSince(start);
       setMessages([...conversation, { role: "assistant", content: turn.reply }]);
-      setSettled(turn.settled);
-      onChanges(turn.changes);
+      onDraft(applyTurn(current, turn));
     } catch (failure) {
       setError(failure instanceof ChatError ? failure.message : FAILED);
     } finally {
       setPending(false);
+      focusInput();
     }
   }
 
   function send() {
-    const content = draft.trim();
+    const content = typed.trim();
     if (!content || pending) return;
     const conversation: ChatMessage[] = [...messages, { role: "user", content }];
     setMessages(conversation);
-    setDraft("");
+    setTyped("");
+    focusInput();
     reply(conversation);
   }
 
@@ -114,20 +148,25 @@ export function NdaChat({
         </div>
       )}
 
-      <form onSubmit={submit} className="flex items-end gap-2 border-t border-rule px-4 py-3 sm:px-6">
+      <form
+        ref={form}
+        onSubmit={submit}
+        className="flex items-end gap-2 border-t border-rule px-4 py-3 sm:px-6"
+      >
         <textarea
+          ref={input}
           aria-label="Message"
           rows={2}
           maxLength={4000}
           placeholder="Type your answer…"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
+          value={typed}
+          onChange={(event) => setTyped(event.target.value)}
           onKeyDown={sendOnEnter}
           className={`${inputClass} resize-none`}
         />
         <button
           type="submit"
-          disabled={pending || !draft.trim()}
+          disabled={pending || !typed.trim()}
           className={buttonClass}
         >
           Send

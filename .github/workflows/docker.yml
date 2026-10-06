@@ -5,7 +5,8 @@ on:
     paths:
       - "backend/**"
       - "frontend/**"
-      - "templates/Mutual-NDA.md"
+      - "templates/**"
+      - "documents/**"
       - "Dockerfile"
       - ".dockerignore"
       - "docker-compose.yml"
@@ -16,7 +17,8 @@ on:
     paths:
       - "backend/**"
       - "frontend/**"
-      - "templates/Mutual-NDA.md"
+      - "templates/**"
+      - "documents/**"
       - "Dockerfile"
       - ".dockerignore"
       - "docker-compose.yml"

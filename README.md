@@ -22,9 +22,12 @@ Sign in with any email address. There is no authentication yet, so the
 password is not checked. The database is temporary: it starts empty every time
 the app starts.
 
-You draft a Mutual NDA by chatting with an AI assistant. It asks about the
-agreement and fills in the document beside the chat as you answer. Without an
-API key the app still starts, but the assistant says it isn't set up.
+You draft an agreement by chatting with an AI assistant. Tell it what you
+need and it picks one of the 11 document types in `catalog.json`, or says so when
+it can't draft what you asked for and offers the closest one. It then asks
+about the agreement and fills in the document beside the chat as you answer.
+**Download PDF** saves the agreement as a PDF file. Without an API key the app
+still starts, but the assistant says it isn't set up.
 
 ## How it fits together
 
@@ -33,12 +36,21 @@ Everything runs in one container, built by the `Dockerfile`:
 - `frontend/` is a Next.js app, built into static files.
 - `backend/` is a FastAPI app. It serves the API under `/api` and the built
   frontend everywhere else, and keeps users in a SQLite database.
-- The chat (`backend/app/chat.py`) sends each message to a language model
-  through OpenRouter, with Cerebras as the provider. The model returns the
-  values the user gave, and the backend works out what is left to ask. Nothing
-  about a conversation is stored: the browser sends the conversation and the
-  current document with every message.
+- The chat sends each message to a language model through OpenRouter, with
+  Cerebras as the provider. The model returns the values the user gave, and
+  the backend works out what is left to ask, so every reply ends with the next
+  question until nothing is missing. Nothing about a conversation is stored:
+  the browser sends the conversation and the current document with every
+  message.
+- The Mutual NDA has its own chat (`backend/app/chat.py`, `POST /api/chat`).
+  The other documents, and choosing a document in the first place, go through
+  `backend/app/converse.py` (`POST /api/draft`).
 - `templates/` holds the agreement text, listed in `catalog.json`.
+- `documents/specs.json` describes each document: its parties, the fields the
+  assistant asks about, and the template variables each field fills. The
+  backend and the frontend build both read it. To change what is asked for a
+  document, edit its entry there. Tests fail if an entry and its template's
+  variables stop matching.
 
 ## Developing
 

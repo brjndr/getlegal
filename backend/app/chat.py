@@ -8,6 +8,8 @@ from typing import Annotated, Literal, get_args
 from litellm import completion
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app import documents
+
 logger = logging.getLogger(__name__)
 
 MODEL = "openrouter/openai/gpt-oss-120b"
@@ -21,12 +23,6 @@ MAX_TOKENS = 2000
 
 ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 PARTIES = ("party1", "party2")
-PARTY_LABELS = {
-    "company": "company",
-    "name": "signer’s name",
-    "title": "signer’s title",
-    "noticeAddress": "notice address",
-}
 DEFAULT_PURPOSE = "Evaluating whether to enter into a business relationship with the other party."
 COMPLETE = (
     "That’s everything the agreement needs. Review the document, and download the PDF when "
@@ -72,7 +68,7 @@ keepsNoModifications (the user wants no modifications). An answer such as "keep 
 What to say:
 - "reply" briefly acknowledges what the user just told you, or answers their question about the \
 agreement. It never asks a question. Do not say you changed something unless you set that field \
-in this answer. Politely decline anything that is not about this Mutual NDA.
+in this answer. Politely decline anything that is not about drafting an agreement.
 - You are given the questions that are still open, in order. "nextQuestion" is the first of them \
 that the user's latest message does not answer, in your own words. For a default, say what the \
 default is and ask whether to keep it or change it. Ask one question at a time. It is null only \
@@ -80,6 +76,17 @@ when no question is left.
 - Both are short plain text, without markdown or JSON. Write dates in words, such as \
 "October 12, 2026".
 """
+# Shared with the chat for the other documents, which lists the documents after it.
+OTHER_DOCUMENTS = """
+Other documents:
+- "document" is null unless the user's latest message clearly asks to draft a different document \
+from the list below. Then set it to that document's id and leave every other field null. Never \
+set it because a document is only mentioned, or to the document already being drafted.
+- If the user asks for a kind of document that is not in the list, say plainly that you cannot \
+generate it, and name the closest document in the list and what it covers. Do not set "document" \
+until the user says they want that one.
+"""
+SYSTEM_PROMPT += f"{OTHER_DOCUMENTS}\nThe documents you can draft:\n{documents.catalog()}\n"
 
 
 class ChatUnavailable(Exception):
@@ -124,12 +131,11 @@ class Form(BaseModel):
     party2: Party
 
 
-class ChatRequest(BaseModel):
+class Conversation(BaseModel):
     messages: list[Message] = Field(min_length=1, max_length=40)
-    form: Form
-    # The defaults the user has already agreed to keep. Nothing is stored between requests.
-    settled: list[Default]
     today: date
+    # The user has only just chosen this document, in the latest message.
+    fresh: bool = False
 
     @field_validator("today")
     @classmethod
@@ -139,10 +145,16 @@ class ChatRequest(BaseModel):
         return today
 
     @model_validator(mode="after")
-    def ends_with_the_user(self) -> "ChatRequest":
+    def ends_with_the_user(self) -> "Conversation":
         if self.messages[-1].role != "user":
             raise ValueError("The last message must be from the user")
         return self
+
+
+class ChatRequest(Conversation):
+    form: Form
+    # The defaults the user has already agreed to keep. Nothing is stored between requests.
+    settled: list[Default]
 
 
 class ChatResponse(BaseModel):
@@ -150,6 +162,8 @@ class ChatResponse(BaseModel):
     # The fields to update, shaped like a partial NdaForm.
     changes: dict
     settled: list[Default]
+    # Set when the user asked for another document instead. Nothing else is filled in then.
+    document: str | None = None
 
 
 class NdaUpdate(BaseModel):
@@ -183,9 +197,10 @@ class NdaUpdate(BaseModel):
     reply: str
     # Asked for separately because the model otherwise tends to stop after acknowledging.
     nextQuestion: str | None
+    document: Literal[*(id for id in documents.load() if id != documents.NDA)] | None
 
 
-def _text(value: str | None) -> str | None:
+def clean_text(value: str | None) -> str | None:
     """Blank text is dropped: the model sometimes sends it for values it was not given.
 
     So is text too long for the form, which the next request would be rejected for.
@@ -196,10 +211,10 @@ def _text(value: str | None) -> str | None:
 
 def _modifications(value: str | None) -> str | None:
     """The one value that blank text removes, since "no modifications" is a real answer."""
-    return "" if value is not None and not value.strip() else _text(value)
+    return "" if value is not None and not value.strip() else clean_text(value)
 
 
-def _date(value: str | None) -> str | None:
+def clean_date(value: str | None) -> str | None:
     if value is None or not ISO_DATE.fullmatch(value):
         return None
     try:
@@ -227,21 +242,21 @@ def changes(update: NdaUpdate, form: Form, today: date) -> dict:
     current["effectiveDate"] = form.effectiveDate or today.isoformat()
     result = _changed(
         {
-            "purpose": _text(update.purpose),
-            "effectiveDate": _date(update.effectiveDate),
+            "purpose": clean_text(update.purpose),
+            "effectiveDate": clean_date(update.effectiveDate),
             "mndaTerm": update.mndaTerm,
             "mndaTermYears": _years(update.mndaTermYears),
             "confidentialityTerm": update.confidentialityTerm,
             "confidentialityYears": _years(update.confidentialityYears),
-            "governingLaw": _text(update.governingLaw),
-            "jurisdiction": _text(update.jurisdiction),
+            "governingLaw": clean_text(update.governingLaw),
+            "jurisdiction": clean_text(update.jurisdiction),
             "modifications": _modifications(update.modifications),
         },
         current,
     )
     for party in PARTIES:
         proposed = {
-            field: _text(getattr(update, f"{party}{field[0].upper()}{field[1:]}"))
+            field: clean_text(getattr(update, f"{party}{field[0].upper()}{field[1:]}"))
             for field in Party.model_fields
         }
         if changed := _changed(proposed, current[party]):
@@ -267,7 +282,7 @@ def _answered(update: NdaUpdate, asked: str | None) -> set[str]:
             update.confidentialityTerm or update.confidentialityYears,
         ),
         # Blank modifications are not a value, so declining them only counts when asked.
-        "modifications": (update.keepsNoModifications, _text(update.modifications)),
+        "modifications": (update.keepsNoModifications, clean_text(update.modifications)),
     }
     # The model sometimes reports an agreement the user did not give, so one is only believed
     # for the question that was just put to the user.
@@ -279,16 +294,8 @@ def _answered(update: NdaUpdate, asked: str | None) -> set[str]:
 
 
 def _party_question(number: int, party: Party) -> str | None:
-    missing = [label for field, label in PARTY_LABELS.items() if not getattr(party, field).strip()]
-    if not missing:
-        return None
-    if len(missing) == len(PARTY_LABELS):
-        return (
-            f"Who is Party {number}? I need the company, the signer’s name and title, and a "
-            "notice address."
-        )
-    listed = " and ".join(filter(None, [", ".join(missing[:-1]), missing[-1]]))
-    return f"For {party.company.strip() or f'Party {number}'}, I still need the {listed}."
+    details = {part: getattr(party, part[0].lower() + part[1:]) for part in documents.PARTY_LABELS}
+    return documents.party_question(f"Party {number}", details)
 
 
 def open_questions(form: Form, settled: set[str]) -> dict[str, str]:
@@ -337,71 +344,118 @@ def open_questions(form: Form, settled: set[str]) -> dict[str, str]:
     }
 
 
-def _context(request: ChatRequest) -> str:
-    today = request.today
+def calendar(today: date) -> str:
     # Spelled out because the model is unreliable at working out weekdays for itself.
-    calendar = ", ".join(
+    days = ", ".join(
         f"{day:%A} {day.isoformat()}" for day in (today + timedelta(days=n) for n in range(15))
     )
-    values = request.form.model_dump()
-    values["effectiveDate"] = request.form.effectiveDate or today.isoformat()
-    questions = "\n".join(
-        f"{number}. {question}"
-        for number, question in enumerate(
-            open_questions(request.form, set(request.settled)).values(), start=1
-        )
+    return f"Today is {today:%A}, {today.isoformat()}.\nToday and the next two weeks: {days}.\n"
+
+
+FRESH = (
+    "The user has just chosen this document in their latest message. Say in your reply that "
+    'you are starting it, and leave "document" null.\n'
+)
+
+
+def numbered(questions: dict[str, str]) -> str:
+    return "\n".join(
+        f"{number}. {question}" for number, question in enumerate(questions.values(), start=1)
     )
+
+
+def context(request: Conversation, values: dict, questions: dict[str, str]) -> str:
+    """What the model needs to know besides the conversation: the date, the agreement as it
+    stands and what is left to ask."""
     return (
-        f"Today is {today:%A}, {today.isoformat()}.\n"
-        f"Today and the next two weeks: {calendar}.\n"
+        f"{FRESH if request.fresh else ''}"
+        f"{calendar(request.today)}"
         f"Current field values:\n{json.dumps(values, indent=2)}\n"
-        f"Questions still open before the user's latest message:\n{questions or 'None.'}"
+        "Questions still open before the user's latest message:\n"
+        f"{numbered(questions) or 'None.'}"
     )
 
 
-def respond(request: ChatRequest) -> ChatResponse:
-    """Asks the model for the next message and the fields the user has just given."""
+def _context(request: ChatRequest) -> str:
+    values = request.form.model_dump()
+    values["effectiveDate"] = request.form.effectiveDate or request.today.isoformat()
+    return context(request, values, open_questions(request.form, set(request.settled)))
+
+
+def ask(messages: list[dict], schema: type[BaseModel]) -> BaseModel:
+    """Gets the model's answer to the conversation, in the shape of the schema."""
     if not os.environ.get("OPENROUTER_API_KEY"):
         raise ChatUnavailable
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "system", "content": _context(request)},
-        *(message.model_dump() for message in request.messages),
-    ]
     try:
         response = completion(
             model=MODEL,
             messages=messages,
-            response_format=NdaUpdate,
+            response_format=schema,
             reasoning_effort="low",
             extra_body=EXTRA_BODY,
             timeout=TIMEOUT_SECONDS,
             max_tokens=MAX_TOKENS,
         )
-        update = NdaUpdate.model_validate_json(response.choices[0].message.content)
+        return schema.model_validate_json(response.choices[0].message.content)
     except Exception as error:
         logger.exception("The chat model call failed")
         raise ChatFailed from error
+
+
+def is_question(text: str) -> bool:
+    return "?" in text
+
+
+def close_reply(reply: str, suggested: str | None, question: str | None, done: str = "") -> str:
+    """Ends the model's reply with a question for as long as something is left to ask.
+
+    `question` is the next thing to ask, or None when nothing is left. The model's own wording
+    is used when it is a question, so that it follows on from the conversation. The model often
+    stops at an acknowledgement or a statement instead, and then `question` is asked as it is.
+    """
+    reply = reply.strip()
+    # The model sometimes leaves its last sentence unfinished, which runs into what follows.
+    if reply and reply[-1].isalnum():
+        reply += "."
+    if question:
+        suggested = (suggested or "").strip()
+        closing = suggested if is_question(suggested) else question
+    else:
+        closing = done
+    # The model sometimes puts its question in the reply as well.
+    if closing in reply:
+        closing = ""
+    if not reply and not closing:
+        raise ChatFailed
+    # Cut to what the next request may send back as part of the conversation, keeping the question.
+    room = MAX_TEXT - len(closing) - 1 if closing else MAX_TEXT
+    return f"{reply[:room]} {closing}".strip()
+
+
+def respond(request: ChatRequest) -> ChatResponse:
+    """Asks the model for the next message and the fields the user has just given."""
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": _context(request)},
+        *(message.model_dump() for message in request.messages),
+    ]
+    update = ask(messages, NdaUpdate)
+    # Not straight after choosing this one: the message that chose it would choose again.
+    if update.document and not request.fresh:
+        return ChatResponse(reply="", changes={}, settled=request.settled, document=update.document)
 
     changed = changes(update, request.form, request.today)
     was_open = open_questions(request.form, set(request.settled))
     settled = set(request.settled) | _answered(update, asked=next(iter(was_open), None))
     still_open = open_questions(_apply(request.form, changed), settled)
 
-    reply = update.reply.strip()
-    if still_open:
-        # The model's wording when it has one, so the question follows on from the conversation.
-        closing = (update.nextQuestion or "").strip() or next(iter(still_open.values()))
-    else:
-        closing = COMPLETE if was_open else ""
-    # The model sometimes puts its question in the reply as well.
-    if closing not in reply:
-        reply = f"{reply} {closing}".strip()
-    if not reply:
-        raise ChatFailed
     return ChatResponse(
-        # Cut to what the next request may send back as part of the conversation.
-        reply=reply[:MAX_TEXT],
+        reply=close_reply(
+            update.reply,
+            update.nextQuestion,
+            next(iter(still_open.values()), None),
+            done=COMPLETE if was_open else "",
+        ),
         changes=changed,
         settled=[topic for topic in get_args(Default) if topic in settled],
     )

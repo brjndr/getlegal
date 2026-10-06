@@ -161,8 +161,29 @@ def test_chat_asks_the_first_open_question_when_the_model_asks_nothing(client, m
     reply = ask(client).json()["reply"]
 
     assert reply == (
-        "Noted. For Acme Inc., I still need the signer’s name, signer’s title and notice address."
+        "Noted. What are the signer’s name, signer’s title and notice address for Acme Inc.?"
     )
+
+
+@pytest.mark.parametrize("suggested", ["Please tell me about Party 1.", "Thanks!", "  ", None])
+def test_chat_asks_its_own_question_when_the_model_suggests_something_else(
+    client, model, suggested
+):
+    model.says("Noted.", nextQuestion=suggested)
+
+    assert ask(client).json()["reply"] == (
+        "Noted. What are the company, signer’s name, signer’s title and notice address for Party 1?"
+    )
+
+
+@pytest.mark.parametrize(
+    "form", [{}, {"party1": ADA}, {"party1": ADA, "party2": HANK}, {"governingLaw": "Delaware"}]
+)
+def test_every_question_the_chat_can_ask_is_a_question(form):
+    questions = chat.open_questions(chat.Form.model_validate({**FORM, **form}), settled=set())
+
+    assert questions
+    assert all(chat.is_question(question) for question in questions.values())
 
 
 def test_chat_does_not_repeat_a_question_the_reply_already_asks(client, model):
@@ -196,10 +217,59 @@ def test_chat_ignores_text_too_long_for_the_form(client, model):
     assert response.json()["changes"] == {}
 
 
-def test_chat_shortens_a_reply_too_long_to_send_back(client, model):
-    model.says("x" * 5000)
+def test_chat_shortens_a_reply_too_long_to_send_back_but_keeps_the_question(client, model):
+    model.says("x" * 5000, nextQuestion="Who is Party 1?")
 
-    assert len(ask(client).json()["reply"]) == 4000
+    reply = ask(client).json()["reply"]
+
+    assert len(reply) == 4000
+    assert reply.endswith("x Who is Party 1?")
+
+
+def test_chat_hands_over_when_the_user_asks_for_another_document(client, model):
+    model.says("Switching.", document="pilot-agreement", governingLaw="Delaware")
+
+    response = ask(client, "Actually I need a pilot agreement", settled=["purpose"])
+
+    # Nothing is filled in: the frontend starts the other document with the same message.
+    assert response.json() == {
+        "reply": "",
+        "changes": {},
+        "settled": ["purpose"],
+        "document": "pilot-agreement",
+    }
+
+
+def test_chat_stays_with_the_nda_when_the_user_has_only_just_chosen_it(client, model):
+    model.says("Starting the NDA.", document="csa", party1Company="Acme Inc.")
+
+    response = ask(client, "An NDA for Acme", fresh=True).json()
+
+    assert "document" not in response
+    assert response["changes"] == {"party1": {"company": "Acme Inc."}}
+    assert response["reply"].startswith("Starting the NDA. What are the signer’s name")
+
+
+def test_chat_tells_the_model_which_other_documents_it_can_hand_over_to(client, model):
+    model.says()
+
+    ask(client)
+
+    assert "- pilot-agreement: Pilot Agreement." in model.calls[0]["messages"][0]["content"]
+    choices = chat.NdaUpdate.model_json_schema()["properties"]["document"]["anyOf"][0]["enum"]
+    assert len(choices) == 10
+    assert "mutual-nda" not in choices
+
+
+def test_chat_tells_the_model_when_the_document_has_just_been_chosen(client, model):
+    model.says()
+
+    ask(client)
+    ask(client, fresh=True)
+
+    first, second = (call["messages"][1]["content"] for call in model.calls)
+    assert "just chosen" not in first
+    assert second.startswith("The user has just chosen this document")
 
 
 def test_chat_remembers_the_default_the_user_agrees_to_keep(client, model):

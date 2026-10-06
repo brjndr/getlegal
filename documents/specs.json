@@ -1,0 +1,856 @@
+{
+  "documents": [
+    {
+      "id": "mutual-nda",
+      "name": "Mutual Non-Disclosure Agreement",
+      "template": "Mutual-NDA.md",
+      "summary": "Two parties share confidential information with each other for a stated purpose.",
+      "engine": "nda"
+    },
+    {
+      "id": "csa",
+      "name": "Cloud Service Agreement",
+      "template": "CSA.md",
+      "summary": "A provider sells access to cloud software or a SaaS product on a subscription.",
+      "parties": [
+        { "key": "provider", "label": "Provider" },
+        { "key": "customer", "label": "Customer" }
+      ],
+      "terms": ["Subscription Periods", "Provider Covered Claim", "Customer Covered Claim"],
+      "fields": [
+        {
+          "key": "cloudService",
+          "label": "Cloud Service",
+          "ask": "What cloud service or product is the Provider selling?",
+          "hint": "the cloud service or product being sold",
+          "variables": []
+        },
+        {
+          "key": "subscriptionPeriod",
+          "label": "Subscription Period",
+          "ask": "How long is the subscription period? For example, 1 year.",
+          "hint": "how long each subscription term lasts, such as \"1 year\""
+        },
+        {
+          "key": "fees",
+          "label": "Fees",
+          "ask": "What are the fees, and how are they paid? For example, $12,000 per year, invoiced annually in advance.",
+          "hint": "what the Customer pays and how",
+          "variables": []
+        },
+        {
+          "key": "effectiveDate",
+          "label": "Effective Date",
+          "kind": "date",
+          "default": "today",
+          "ask": "The agreement is set to start today. Keep that, or choose another Effective Date?",
+          "hint": "the date the agreement starts"
+        },
+        {
+          "key": "orderDate",
+          "label": "Order Date",
+          "kind": "date",
+          "default": "today",
+          "ask": "The first order is set to start today as well. Keep that, or choose another Order Date?",
+          "hint": "the date the first order starts"
+        },
+        {
+          "key": "nonRenewalNoticeDate",
+          "label": "Non-Renewal Notice Date",
+          "ask": "By when must a party give notice that it will not renew? For example, 30 days before the end of the Subscription Period.",
+          "hint": "the deadline for giving notice of non-renewal, as a phrase such as \"30 days before the end of the Subscription Period\""
+        },
+        {
+          "key": "generalCapAmount",
+          "label": "General Cap Amount",
+          "ask": "What should each party’s total liability be capped at? For example, the fees paid in the 12 months before the claim.",
+          "hint": "the cap on each party's total liability"
+        },
+        {
+          "key": "governingLaw",
+          "label": "Governing Law",
+          "ask": "Which state’s laws should govern the agreement?",
+          "hint": "whose laws govern, written out in full: \"the laws of the State of Delaware\" when the user says Delaware"
+        },
+        {
+          "key": "chosenCourts",
+          "label": "Chosen Courts",
+          "ask": "Which courts should hear disputes? For example, the state or federal courts located in New Castle County, Delaware.",
+          "hint": "the courts that hear disputes, as a phrase such as \"state or federal courts located in New Castle County, Delaware\""
+        },
+        {
+          "key": "technicalSupport",
+          "label": "Technical Support",
+          "optional": true,
+          "hint": "the support the Provider gives, such as \"email support on business days\""
+        },
+        {
+          "key": "dpa",
+          "label": "DPA",
+          "optional": true,
+          "hint": "the data processing agreement between the parties, if they have one"
+        },
+        {
+          "key": "providerCoveredClaims",
+          "label": "Provider Covered Claims",
+          "optional": true,
+          "hint": "the third-party claims the Provider indemnifies the Customer against"
+        },
+        {
+          "key": "customerCoveredClaims",
+          "label": "Customer Covered Claims",
+          "optional": true,
+          "hint": "the third-party claims the Customer indemnifies the Provider against"
+        }
+      ]
+    },
+    {
+      "id": "sla",
+      "name": "Service Level Agreement",
+      "template": "sla.md",
+      "summary": "Uptime and support response targets, with service credits, for a cloud service sold under another agreement.",
+      "parties": [
+        { "key": "provider", "label": "Provider" },
+        { "key": "customer", "label": "Customer" }
+      ],
+      "fields": [
+        {
+          "key": "agreementReference",
+          "label": "Underlying Agreement",
+          "ask": "Which existing agreement does this SLA attach to? For example, the Cloud Service Agreement between the parties dated March 1, 2026.",
+          "hint": "the existing agreement this SLA is attached to, with its date if known",
+          "variables": []
+        },
+        {
+          "key": "subscriptionPeriod",
+          "label": "Subscription Period",
+          "ask": "What is the subscription period of the cloud service? For example, 1 year.",
+          "hint": "how long the subscription lasts, such as \"1 year\""
+        },
+        {
+          "key": "targetUptime",
+          "label": "Target Uptime",
+          "ask": "What uptime is the Provider aiming for each month? For example, 99.9%.",
+          "hint": "the monthly availability target, such as \"99.9%\""
+        },
+        {
+          "key": "uptimeCredit",
+          "label": "Uptime Credit",
+          "ask": "What service credit does the Customer get when uptime falls below the target? For example, 5% of that month’s fees.",
+          "hint": "the credit for missing the uptime target"
+        },
+        {
+          "key": "targetResponseTime",
+          "label": "Target Response Time",
+          "optional": true,
+          "hint": "how quickly support requests are answered, such as \"4 business hours\""
+        },
+        {
+          "key": "supportChannel",
+          "label": "Support Channel",
+          "optional": true,
+          "hint": "where support requests are sent, such as an email address"
+        },
+        {
+          "key": "responseTimeCredit",
+          "label": "Response Time Credit",
+          "optional": true,
+          "hint": "the credit for missing the response time target"
+        },
+        {
+          "key": "scheduledDowntime",
+          "label": "Scheduled Downtime",
+          "optional": true,
+          "hint": "planned maintenance windows that do not count as downtime"
+        }
+      ]
+    },
+    {
+      "id": "pilot-agreement",
+      "name": "Pilot Agreement",
+      "template": "Pilot-Agreement.md",
+      "summary": "A prospective customer tries out a product for a short period before committing to buy it.",
+      "parties": [
+        { "key": "provider", "label": "Provider" },
+        { "key": "customer", "label": "Customer" }
+      ],
+      "terms": ["Notice Address"],
+      "fields": [
+        {
+          "key": "product",
+          "label": "Product",
+          "ask": "What product or service is being piloted?",
+          "hint": "the product or service the Customer is evaluating",
+          "variables": []
+        },
+        {
+          "key": "pilotPeriod",
+          "label": "Pilot Period",
+          "ask": "How long should the pilot last? For example, 90 days from the Effective Date.",
+          "hint": "how long the pilot runs, such as \"90 days from the Effective Date\""
+        },
+        {
+          "key": "effectiveDate",
+          "label": "Effective Date",
+          "kind": "date",
+          "default": "today",
+          "ask": "The agreement is set to start today. Keep that, or choose another Effective Date?",
+          "hint": "the date the agreement starts"
+        },
+        {
+          "key": "generalCapAmount",
+          "label": "General Cap Amount",
+          "ask": "What should each party’s total liability be capped at? For example, $10,000.",
+          "hint": "the cap on each party's total liability"
+        },
+        {
+          "key": "governingLaw",
+          "label": "Governing Law",
+          "ask": "Which state’s laws should govern the agreement?",
+          "hint": "whose laws govern, written out in full: \"the laws of the State of Delaware\" when the user says Delaware"
+        },
+        {
+          "key": "chosenCourts",
+          "label": "Chosen Courts",
+          "ask": "Which courts should hear disputes? For example, the state or federal courts located in New Castle County, Delaware.",
+          "hint": "the courts that hear disputes, as a phrase such as \"state or federal courts located in New Castle County, Delaware\""
+        }
+      ]
+    },
+    {
+      "id": "design-partner-agreement",
+      "name": "Design Partner Agreement",
+      "template": "design-partner-agreement.md",
+      "summary": "A partner gets early access to a product in return for feedback that helps the provider develop it.",
+      "parties": [
+        { "key": "provider", "label": "Provider" },
+        { "key": "partner", "label": "Partner" }
+      ],
+      "terms": ["Notice Address"],
+      "fields": [
+        {
+          "key": "product",
+          "label": "Product",
+          "ask": "What product is the Partner getting early access to?",
+          "hint": "the product the Partner gets early access to",
+          "variables": []
+        },
+        {
+          "key": "program",
+          "label": "Program",
+          "ask": "How would you describe the design partner program? For example, monthly feedback sessions on the new analytics features.",
+          "hint": "what the design partner program involves"
+        },
+        {
+          "key": "term",
+          "label": "Term",
+          "ask": "How long should the agreement run? For example, 6 months.",
+          "hint": "how long the agreement lasts, such as \"6 months\""
+        },
+        {
+          "key": "effectiveDate",
+          "label": "Effective Date",
+          "kind": "date",
+          "default": "today",
+          "ask": "The agreement is set to start today. Keep that, or choose another Effective Date?",
+          "hint": "the date the agreement starts"
+        },
+        {
+          "key": "governingLaw",
+          "label": "Governing Law",
+          "ask": "Which state’s laws should govern the agreement?",
+          "hint": "whose laws govern, written out in full: \"the laws of the State of Delaware\" when the user says Delaware"
+        },
+        {
+          "key": "chosenCourts",
+          "label": "Chosen Courts",
+          "ask": "Which courts should hear disputes? For example, the state or federal courts located in New Castle County, Delaware.",
+          "hint": "the courts that hear disputes, as a phrase such as \"state or federal courts located in New Castle County, Delaware\""
+        },
+        {
+          "key": "fees",
+          "label": "Fees",
+          "optional": true,
+          "hint": "what the Partner pays the Provider, if anything"
+        }
+      ]
+    },
+    {
+      "id": "psa",
+      "name": "Professional Services Agreement",
+      "template": "psa.md",
+      "summary": "A provider delivers professional services, such as consulting or implementation work, under a statement of work.",
+      "parties": [
+        { "key": "provider", "label": "Provider" },
+        { "key": "customer", "label": "Customer" }
+      ],
+      "terms": ["Deliverable", "Provider Covered Claim", "Customer Covered Claim"],
+      "fields": [
+        {
+          "key": "services",
+          "label": "Services",
+          "ask": "What services will the Provider perform?",
+          "hint": "the services the Provider performs",
+          "variables": []
+        },
+        {
+          "key": "deliverables",
+          "label": "Deliverables",
+          "ask": "What will the Provider deliver to the Customer? For example, a migration plan and the migrated database.",
+          "hint": "what the Provider hands over to the Customer"
+        },
+        {
+          "key": "fees",
+          "label": "Fees",
+          "ask": "What are the fees for the work? For example, $20,000 fixed, or $200 per hour.",
+          "hint": "what the Customer pays for the services"
+        },
+        {
+          "key": "paymentPeriod",
+          "label": "Payment Period",
+          "ask": "How long does the Customer have to pay each invoice? For example, 30 days from the invoice date.",
+          "hint": "the time allowed to pay an invoice, such as \"30 days from the invoice date\""
+        },
+        {
+          "key": "sowTerm",
+          "label": "SOW Term",
+          "ask": "How long will the statement of work run? For example, 6 months from the Effective Date.",
+          "hint": "how long the statement of work lasts"
+        },
+        {
+          "key": "effectiveDate",
+          "label": "Effective Date",
+          "kind": "date",
+          "default": "today",
+          "ask": "The agreement is set to start today. Keep that, or choose another Effective Date?",
+          "hint": "the date the agreement starts"
+        },
+        {
+          "key": "generalCapAmount",
+          "label": "General Cap Amount",
+          "ask": "What should each party’s total liability be capped at? For example, the fees paid under the statement of work.",
+          "hint": "the cap on each party's total liability"
+        },
+        {
+          "key": "governingLaw",
+          "label": "Governing Law",
+          "ask": "Which state’s laws should govern the agreement?",
+          "hint": "whose laws govern, written out in full: \"the laws of the State of Delaware\" when the user says Delaware"
+        },
+        {
+          "key": "chosenCourts",
+          "label": "Chosen Courts",
+          "ask": "Which courts should hear disputes? For example, the state or federal courts located in New Castle County, Delaware.",
+          "hint": "the courts that hear disputes, as a phrase such as \"state or federal courts located in New Castle County, Delaware\""
+        },
+        {
+          "key": "rejectionPeriod",
+          "label": "Rejection Period",
+          "optional": true,
+          "hint": "how long the Customer has to reject a deliverable, such as \"10 business days\""
+        },
+        {
+          "key": "resubmissionPeriod",
+          "label": "Resubmission Period",
+          "optional": true,
+          "hint": "how long the Provider has to fix and resubmit a rejected deliverable"
+        },
+        {
+          "key": "timeOfAssignment",
+          "label": "Time of Assignment",
+          "optional": true,
+          "hint": "when ownership of the deliverables passes to the Customer, such as \"full payment of the Fees\""
+        },
+        {
+          "key": "customerObligations",
+          "label": "Customer Obligations",
+          "optional": true,
+          "hint": "what the Customer must do or provide for the work"
+        },
+        {
+          "key": "customerPolicies",
+          "label": "Customer Policies",
+          "optional": true,
+          "hint": "Customer policies the Provider must follow"
+        },
+        {
+          "key": "securityPolicy",
+          "label": "Security Policy",
+          "optional": true,
+          "hint": "the security policy the Provider must follow"
+        },
+        {
+          "key": "dpa",
+          "label": "DPA",
+          "optional": true,
+          "hint": "the data processing agreement between the parties, if they have one"
+        },
+        {
+          "key": "additionalWarranties",
+          "label": "Additional Warranties",
+          "optional": true,
+          "hint": "warranties beyond the standard ones"
+        },
+        {
+          "key": "increasedClaims",
+          "label": "Increased Claims",
+          "optional": true,
+          "hint": "the kinds of claim that get a higher liability cap"
+        },
+        {
+          "key": "increasedCapAmount",
+          "label": "Increased Cap Amount",
+          "optional": true,
+          "hint": "the higher liability cap for the Increased Claims"
+        },
+        {
+          "key": "unlimitedClaims",
+          "label": "Unlimited Claims",
+          "optional": true,
+          "hint": "the kinds of claim with no liability cap"
+        },
+        {
+          "key": "providerCoveredClaims",
+          "label": "Provider Covered Claims",
+          "optional": true,
+          "hint": "the third-party claims the Provider indemnifies the Customer against"
+        },
+        {
+          "key": "customerCoveredClaims",
+          "label": "Customer Covered Claims",
+          "optional": true,
+          "hint": "the third-party claims the Customer indemnifies the Provider against"
+        },
+        {
+          "key": "insuranceMinimums",
+          "label": "Insurance Minimums",
+          "optional": true,
+          "hint": "the minimum insurance cover each party must carry"
+        }
+      ]
+    },
+    {
+      "id": "dpa",
+      "name": "Data Processing Agreement",
+      "template": "DPA.md",
+      "summary": "How a provider processes personal data on a customer’s behalf, added to an existing agreement between them.",
+      "parties": [
+        { "key": "provider", "label": "Provider" },
+        { "key": "customer", "label": "Customer" }
+      ],
+      "fields": [
+        {
+          "key": "agreementReference",
+          "label": "Agreement",
+          "ask": "Which existing agreement does this DPA attach to? For example, the Cloud Service Agreement between the parties dated March 1, 2026.",
+          "hint": "the existing agreement this DPA supplements, with its date if known"
+        },
+        {
+          "key": "categoriesOfPersonalData",
+          "label": "Categories of Personal Data",
+          "ask": "What kinds of personal data will the Provider process? For example, names, email addresses and usage data.",
+          "hint": "the kinds of personal data processed"
+        },
+        {
+          "key": "categoriesOfDataSubjects",
+          "label": "Categories of Data Subjects",
+          "ask": "Whose personal data is it? For example, the Customer’s employees and end users.",
+          "hint": "the people the personal data is about"
+        },
+        {
+          "key": "natureAndPurposeOfProcessing",
+          "label": "Nature and Purpose of Processing",
+          "ask": "What will the Provider do with the data, and why? For example, hosting and storing it to provide the service.",
+          "hint": "what is done with the data and for what purpose"
+        },
+        {
+          "key": "durationOfProcessing",
+          "label": "Duration of Processing",
+          "ask": "How long will the processing last? For example, for the term of the Agreement.",
+          "hint": "how long the data is processed"
+        },
+        {
+          "key": "specialCategoryData",
+          "label": "Special Category Data",
+          "optional": true,
+          "hint": "any sensitive data processed, such as health data"
+        },
+        {
+          "key": "specialCategoryDataRestrictions",
+          "label": "Special Category Data Restrictions or Safeguards",
+          "optional": true,
+          "hint": "restrictions or safeguards for the sensitive data"
+        },
+        {
+          "key": "frequencyOfTransfer",
+          "label": "Frequency of Transfer",
+          "optional": true,
+          "hint": "how often data is transferred, such as \"continuous\""
+        },
+        {
+          "key": "approvedSubprocessors",
+          "label": "Approved Subprocessors",
+          "optional": true,
+          "hint": "the subprocessors the Customer approves, or where the list is published"
+        },
+        {
+          "key": "governingMemberState",
+          "label": "Governing Member State",
+          "optional": true,
+          "hint": "the EU member state whose law governs the EEA transfer clauses, such as \"Ireland\""
+        },
+        {
+          "key": "securityPolicy",
+          "label": "Security Policy",
+          "optional": true,
+          "hint": "the security standard the Provider is audited against, such as \"SOC 2 Type II\""
+        },
+        {
+          "key": "providerSecurityContact",
+          "label": "Provider Security Contact",
+          "optional": true,
+          "hint": "who the Customer contacts about security, such as an email address"
+        }
+      ]
+    },
+    {
+      "id": "baa",
+      "name": "Business Associate Agreement",
+      "template": "BAA.md",
+      "summary": "How a provider handles protected health information for a company under HIPAA, added to an existing agreement between them.",
+      "parties": [
+        { "key": "provider", "label": "Provider" },
+        { "key": "company", "label": "Company" }
+      ],
+      "fields": [
+        {
+          "key": "agreementReference",
+          "label": "Agreement",
+          "ask": "Which existing agreement does this BAA attach to? For example, the Cloud Service Agreement between the parties dated March 1, 2026.",
+          "hint": "the existing services agreement this BAA supplements, with its date if known"
+        },
+        {
+          "key": "baaEffectiveDate",
+          "label": "BAA Effective Date",
+          "kind": "date",
+          "default": "today",
+          "ask": "The BAA is set to start today. Keep that, or choose another BAA Effective Date?",
+          "hint": "the date the BAA starts"
+        },
+        {
+          "key": "breachNotificationPeriod",
+          "label": "Breach Notification Period",
+          "ask": "How quickly must the Provider report a breach of health information? For example, 5 business days.",
+          "hint": "the time allowed to report a breach, such as \"5 business days\""
+        },
+        {
+          "key": "limitations",
+          "label": "Limitations",
+          "optional": true,
+          "hint": "limits on how the Provider may use or disclose health information, such as no offshoring"
+        }
+      ]
+    },
+    {
+      "id": "ai-addendum",
+      "name": "AI Addendum",
+      "template": "AI-Addendum.md",
+      "summary": "Terms for a provider’s AI features, including whether customer data may train models, added to an existing agreement.",
+      "parties": [
+        { "key": "provider", "label": "Provider" },
+        { "key": "customer", "label": "Customer" }
+      ],
+      "fields": [
+        {
+          "key": "agreementReference",
+          "label": "Underlying Agreement",
+          "ask": "Which existing agreement does this AI Addendum attach to? For example, the Cloud Service Agreement between the parties dated March 1, 2026.",
+          "hint": "the existing agreement this addendum supplements, with its date if known",
+          "variables": []
+        },
+        {
+          "key": "trainingData",
+          "label": "Training Data",
+          "optional": true,
+          "hint": "the customer data the Provider may use to train models"
+        },
+        {
+          "key": "trainingPurposes",
+          "label": "Training Purposes",
+          "optional": true,
+          "hint": "what the Provider may train models for"
+        },
+        {
+          "key": "trainingRestrictions",
+          "label": "Training Restrictions",
+          "optional": true,
+          "hint": "limits on that training"
+        },
+        {
+          "key": "improvementRestrictions",
+          "label": "Improvement Restrictions",
+          "optional": true,
+          "hint": "limits on using data to improve the product without training models"
+        }
+      ]
+    },
+    {
+      "id": "partnership-agreement",
+      "name": "Partnership Agreement",
+      "template": "Partnership-Agreement.md",
+      "summary": "Two companies work together as business partners, for example on referrals, reselling or co-marketing.",
+      "parties": [
+        { "key": "company", "label": "Company" },
+        { "key": "partner", "label": "Partner" }
+      ],
+      "terms": ["Partner Covered Claim"],
+      "fields": [
+        {
+          "key": "obligations",
+          "label": "Obligations",
+          "ask": "What will each party do under the partnership? For example, the Partner refers customers and the Company pays a 10% referral fee.",
+          "hint": "what each party commits to do"
+        },
+        {
+          "key": "territory",
+          "label": "Territory",
+          "ask": "Where may each party use the other’s brand? For example, worldwide, or the United States.",
+          "hint": "where the trademark licence applies, such as \"worldwide\""
+        },
+        {
+          "key": "effectiveDate",
+          "label": "Effective Date",
+          "kind": "date",
+          "default": "today",
+          "ask": "The agreement is set to start today. Keep that, or choose another Effective Date?",
+          "hint": "the date the agreement starts"
+        },
+        {
+          "key": "endDate",
+          "label": "End Date",
+          "kind": "date",
+          "ask": "When should the partnership end?",
+          "hint": "the date the agreement ends"
+        },
+        {
+          "key": "generalCapAmount",
+          "label": "General Cap Amount",
+          "ask": "What should each party’s total liability be capped at? For example, $50,000.",
+          "hint": "the cap on each party's total liability"
+        },
+        {
+          "key": "governingLaw",
+          "label": "Governing Law",
+          "ask": "Which state’s laws should govern the agreement?",
+          "hint": "whose laws govern, written out in full: \"the laws of the State of Delaware\" when the user says Delaware"
+        },
+        {
+          "key": "chosenCourts",
+          "label": "Chosen Courts",
+          "ask": "Which courts should hear disputes? For example, the state or federal courts located in New Castle County, Delaware.",
+          "hint": "the courts that hear disputes, as a phrase such as \"state or federal courts located in New Castle County, Delaware\""
+        },
+        {
+          "key": "paymentProcess",
+          "label": "Payment Process",
+          "optional": true,
+          "hint": "how fees are billed or invoiced between the parties"
+        },
+        {
+          "key": "paymentSchedule",
+          "label": "Payment Schedule",
+          "optional": true,
+          "hint": "when fees are paid, such as \"within 30 days of each invoice\""
+        },
+        {
+          "key": "brandGuidelines",
+          "label": "Brand Guidelines",
+          "optional": true,
+          "hint": "the brand guidelines each party must follow"
+        },
+        {
+          "key": "dpa",
+          "label": "DPA",
+          "optional": true,
+          "hint": "the data processing agreement between the parties, if they have one"
+        },
+        {
+          "key": "additionalWarranties",
+          "label": "Additional Warranties",
+          "optional": true,
+          "hint": "warranties beyond the standard ones"
+        },
+        {
+          "key": "increasedClaims",
+          "label": "Increased Claims",
+          "optional": true,
+          "hint": "the kinds of claim that get a higher liability cap"
+        },
+        {
+          "key": "increasedCapAmount",
+          "label": "Increased Cap Amount",
+          "optional": true,
+          "hint": "the higher liability cap for the Increased Claims"
+        },
+        {
+          "key": "unlimitedClaims",
+          "label": "Unlimited Claims",
+          "optional": true,
+          "hint": "the kinds of claim with no liability cap"
+        },
+        {
+          "key": "companyCoveredClaims",
+          "label": "Company Covered Claims",
+          "optional": true,
+          "hint": "the third-party claims the Company indemnifies the Partner against",
+          "variables": ["Company Covered Claim"]
+        },
+        {
+          "key": "partnerCoveredClaims",
+          "label": "Partner Covered Claims",
+          "optional": true,
+          "hint": "the third-party claims the Partner indemnifies the Company against"
+        }
+      ]
+    },
+    {
+      "id": "software-license-agreement",
+      "name": "Software License Agreement",
+      "template": "Software-License-Agreement.md",
+      "summary": "A provider licenses software that the customer installs and runs on its own systems.",
+      "parties": [
+        { "key": "provider", "label": "Provider" },
+        { "key": "customer", "label": "Customer" }
+      ],
+      "terms": ["Subscription Periods", "Provider Covered Claim", "Customer Covered Claim"],
+      "fields": [
+        {
+          "key": "software",
+          "label": "Software",
+          "ask": "What software is being licensed?",
+          "hint": "the software being licensed",
+          "variables": []
+        },
+        {
+          "key": "permittedUses",
+          "label": "Permitted Uses",
+          "ask": "What may the Customer use the software for? For example, its internal business purposes.",
+          "hint": "what the Customer may use the software for"
+        },
+        {
+          "key": "subscriptionPeriod",
+          "label": "Subscription Period",
+          "ask": "How long is the licence period? For example, 1 year.",
+          "hint": "how long each licence term lasts, such as \"1 year\""
+        },
+        {
+          "key": "fees",
+          "label": "Fees",
+          "ask": "What are the licence fees? For example, $25,000 per year.",
+          "hint": "what the Customer pays for the licence",
+          "variables": []
+        },
+        {
+          "key": "paymentProcess",
+          "label": "Payment Process",
+          "ask": "How will the Customer pay? For example, by invoice, payable within 30 days.",
+          "hint": "how fees are paid, by invoice or automatic payment, and when"
+        },
+        {
+          "key": "effectiveDate",
+          "label": "Effective Date",
+          "kind": "date",
+          "default": "today",
+          "ask": "The agreement is set to start today. Keep that, or choose another Effective Date?",
+          "hint": "the date the agreement starts"
+        },
+        {
+          "key": "orderDate",
+          "label": "Order Date",
+          "kind": "date",
+          "default": "today",
+          "ask": "The first order is set to start today as well. Keep that, or choose another Order Date?",
+          "hint": "the date the first order starts"
+        },
+        {
+          "key": "nonRenewalNoticeDate",
+          "label": "Non-Renewal Notice Date",
+          "ask": "By when must a party give notice that it will not renew? For example, 30 days before the end of the Subscription Period.",
+          "hint": "the deadline for giving notice of non-renewal, as a phrase such as \"30 days before the end of the Subscription Period\""
+        },
+        {
+          "key": "generalCapAmount",
+          "label": "General Cap Amount",
+          "ask": "What should each party’s total liability be capped at? For example, the fees paid in the 12 months before the claim.",
+          "hint": "the cap on each party's total liability"
+        },
+        {
+          "key": "governingLaw",
+          "label": "Governing Law",
+          "ask": "Which state’s laws should govern the agreement?",
+          "hint": "whose laws govern, written out in full: \"the laws of the State of Delaware\" when the user says Delaware"
+        },
+        {
+          "key": "chosenCourts",
+          "label": "Chosen Courts",
+          "ask": "Which courts should hear disputes? For example, the state or federal courts located in New Castle County, Delaware.",
+          "hint": "the courts that hear disputes, as a phrase such as \"state or federal courts located in New Castle County, Delaware\""
+        },
+        {
+          "key": "licenseLimits",
+          "label": "License Limits",
+          "optional": true,
+          "hint": "limits on the licence, such as a number of users or installations"
+        },
+        {
+          "key": "warrantyPeriod",
+          "label": "Warranty Period",
+          "optional": true,
+          "hint": "how long the software is warranted to work as specified, such as \"90 days\""
+        },
+        {
+          "key": "deletionProcedure",
+          "label": "Deletion Procedure",
+          "optional": true,
+          "hint": "how the Customer removes the software when the licence ends"
+        },
+        {
+          "key": "additionalWarranties",
+          "label": "Additional Warranties",
+          "optional": true,
+          "hint": "warranties beyond the standard ones"
+        },
+        {
+          "key": "increasedClaims",
+          "label": "Increased Claims",
+          "optional": true,
+          "hint": "the kinds of claim that get a higher liability cap"
+        },
+        {
+          "key": "increasedCapAmount",
+          "label": "Increased Cap Amount",
+          "optional": true,
+          "hint": "the higher liability cap for the Increased Claims"
+        },
+        {
+          "key": "unlimitedClaims",
+          "label": "Unlimited Claims",
+          "optional": true,
+          "hint": "the kinds of claim with no liability cap"
+        },
+        {
+          "key": "providerCoveredClaims",
+          "label": "Provider Covered Claims",
+          "optional": true,
+          "hint": "the third-party claims the Provider indemnifies the Customer against"
+        },
+        {
+          "key": "customerCoveredClaims",
+          "label": "Customer Covered Claims",
+          "optional": true,
+          "hint": "the third-party claims the Customer indemnifies the Provider against"
+        }
+      ]
+    }
+  ]
+}

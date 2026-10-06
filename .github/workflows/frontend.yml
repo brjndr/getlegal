@@ -4,13 +4,15 @@ on:
   pull_request:
     paths:
       - "frontend/**"
-      - "templates/Mutual-NDA.md"
+      - "templates/**"
+      - "documents/**"
       - ".github/workflows/frontend.yml"
   push:
     branches: [main]
     paths:
       - "frontend/**"
-      - "templates/Mutual-NDA.md"
+      - "templates/**"
+      - "documents/**"
       - ".github/workflows/frontend.yml"
 
 permissions:

@@ -56,7 +56,7 @@ Done:
 - GL-3: Mutual NDA creator with a live document preview.
 - GL-4: V1 foundation. FastAPI backend in `backend/` (uv), Next.js frontend built as a static export and served by FastAPI, SQLite with a `users` table recreated on every start, one Docker container run by the scripts in `scripts/`, and CI for the backend, the frontend and the container.
 - GL-5: AI chat for the Mutual NDA. `POST /api/chat` (`backend/app/chat.py`) follows the Cerebras skill with Structured Outputs. PR #7, merged.
-- GL-6: all 11 document types. The chat picks the document, and for a request it cannot draft it says so and offers the closest one. `POST /api/draft` (`backend/app/converse.py`) chooses the document and drafts every document except the Mutual NDA, which keeps `/api/chat`. Also in GL-6: Download PDF saves a PDF file (pdfmake, in the browser) instead of opening the print dialog, the cursor returns to the message box after each reply, and every reply ends with a question while anything is still open. On branch `GL-6`, PR not yet merged.
+- GL-6: all 11 document types. The chat picks the document, and for a request it cannot draft it says so and offers the closest one. `POST /api/draft` (`backend/app/converse.py`) chooses the document and drafts every document except the Mutual NDA, which keeps `/api/chat`. Also in GL-6: Download PDF saves a PDF file (pdfmake, in the browser) instead of opening the print dialog, the cursor returns to the message box after each reply, and every reply ends with a question while anything is still open. PR #8, merged.
 
 Not built yet:
 - The login is fake: `/login` accepts any email, the password is not checked, and the API is unauthenticated.
